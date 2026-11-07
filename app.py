@@ -66,7 +66,7 @@ from supabase import Client, create_client
 import runtime
 from admin_api import create_router
 from mqtt_bus import MqttBus
-from vision import compute_light_program, detect_vehicles
+from vision import compute_light_program, detect_vehicles, render_detections
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("greenflow")
@@ -97,6 +97,8 @@ app.add_middleware(
 LATEST_PROGRAMS: dict[str, dict] = {}
 # frame JPEG terakhir per lokasi: (bytes, epoch) -> dipakai /api/frame (pantauan + editor ROI)
 LATEST_FRAMES: dict[str, tuple[bytes, float]] = {}
+# hasil deteksi terakhir per lokasi (kotak + frame yang dideteksi) -> /api/detections
+LATEST_DETECTIONS: dict[str, dict] = {}
 
 
 def _slug_to_location(slug: str):
@@ -150,6 +152,21 @@ def process_frame(jpeg_bytes: bytes, location: str, device_id: str, battery_leve
         congested=custom.get("congested"),
     )
     LATEST_FRAMES[location] = (jpeg_bytes, time.time())
+    LATEST_DETECTIONS[location] = {
+        "ts": time.time(),
+        "device_id": device_id,
+        "width": detection.width,
+        "height": detection.height,
+        "roi": roi_polygon,
+        "roi_label": calib.get("roi_label", "") if roi_polygon else "",
+        "vehicle_count": detection.vehicle_count,
+        "all_lanes_total": detection.total_vehicle_count,
+        "counts_by_class": detection.counts_by_class,
+        "total_counts_by_class": detection.total_counts_by_class,
+        "traffic_status": program.traffic_status,
+        "boxes": detection.boxes,
+        "jpeg": jpeg_bytes,   # frame persis yang dideteksi, supaya kotak selalu pas
+    }
 
     # counts_by_class is jsonb, so we can pack the lane-vs-whole-frame
     # comparison in there without a schema migration. Only added when this
@@ -400,6 +417,8 @@ app.include_router(create_router(SimpleNamespace(
     fetch_cctv_frame=fetch_cctv_frame,
     LATEST_PROGRAMS=LATEST_PROGRAMS,
     LATEST_FRAMES=LATEST_FRAMES,
+    LATEST_DETECTIONS=LATEST_DETECTIONS,
+    render_detections=render_detections,
     bus=bus,
 )))
 

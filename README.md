@@ -38,6 +38,7 @@ Hitung kendaraan dari kamera, tentukan lalu lintas **LANCAR / PADAT / MACET**, l
   - **Mode B – `cctv`**: server menarik gambar sendiri dari **API/stream CCTV publik** (snapshot JPEG, HLS `.m3u8`, atau MJPEG). Tidak perlu perangkat keras tambahan.
 - **Deteksi YOLOv8n** untuk mobil, motor, bus, dan truk.
 - **ROI (filter jalur)**: hitung hanya kendaraan di jalur yang relevan, digambar langsung di tab Admin.
+- **Hasil deteksi ROI**: kotak tiap kendaraan + `kelas: confidence` + "Vehicles detected: N" di tab Pantauan, tabel deteksi, dan unduhan JPG (render server), PNG, JSON, CSV. Di editor ROI, "Uji deteksi terakhir" menghitung ulang jumlah kendaraan untuk poligon yang sedang digambar sebelum disimpan.
 - **Klasifikasi kepadatan** (LANCAR / PADAT / MACET) dan **program lampu otomatis** (durasi merah/kuning/hijau).
 - **Dashboard satu file HTML**: ringkasan, peta pantauan, riwayat + ekspor CSV, grafik rata-rata per jam, mode gelap/terang, responsif di HP.
 - **Panel Admin** (token): koordinat lokasi, ROI, ambang, program lampu, parameter firmware, perintah jarak jauh.
@@ -492,6 +493,8 @@ Buat user `dashboard_ro` dengan ACL yang hanya boleh *subscribe* ke `status` dan
 | `GET /api/logs?location=&limit=` | Riwayat deteksi |
 | `GET /api/hourly?location=&range=today\|yesterday\|7days` | Rata-rata per jam |
 | `GET /api/frame?location=` | Frame JPEG terbaru |
+| `GET /api/detections?location=` | Hasil deteksi terakhir (JSON): `boxes[]` berisi `{cls, conf, box:[x1,y1,x2,y2] (0–1), in_roi}`, jumlah per kelas, ROI yang dipakai |
+| `GET /api/detections/image?location=` | JPEG beranotasi (kotak + label + "Vehicles detected"). Opsi: `raw=1` (frame asli tanpa kotak), `outside=0` (sembunyikan kotak di luar ROI), `roi=0` (tanpa poligon), `download=1` (simpan sebagai file) |
 | `GET /api/cameras` | Daftar lokasi CCTV |
 | `GET /api/light/latest?location=` | Program lampu terbaru (dipakai ESP32-C6) |
 | `GET /api/debug/roi-preview?location=` | Frame CCTV + poligon ROI |
@@ -550,6 +553,14 @@ Dokumentasi interaktif FastAPI: `http://IP_SERVER:8000/docs`.
 | Riwayat | Mobile |
 |---|---|
 | ![Riwayat](screenshots/03-riwayat-terang.png) | ![Mobile](screenshots/13-mobile-pantauan.png) |
+
+| Hasil deteksi ROI (Pantauan) | Uji deteksi di editor ROI |
+|---|---|
+| ![Hasil ROI](screenshots/14-pantauan-hasil-roi.png) | ![Uji deteksi](screenshots/15-admin-roi-uji-deteksi.png) |
+
+| Unduhan JPG dari server | Unduhan PNG dari browser |
+|---|---|
+| ![JPG server](screenshots/17-contoh-jpg-server-roi.jpg) | ![PNG browser](screenshots/18-contoh-png-browser-roi.png) |
 
 ---
 

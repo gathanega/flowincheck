@@ -7,6 +7,9 @@ Publik (hanya baca):
   GET  /api/logs?location=&limit=          riwayat deteksi (dari Supabase)
   GET  /api/hourly?location=&range=        rata-rata kendaraan per jam (today|yesterday|7days)
   GET  /api/frame?location=                frame JPEG terbaru (untuk pantauan & editor ROI)
+  GET  /api/detections?location=           hasil deteksi terakhir: kotak {cls, conf, box[x1,y1,x2,y2] 0-1, in_roi} + jumlah
+  GET  /api/detections/image?location=&raw=0&outside=1&roi=1&download=0
+                                           JPEG beranotasi (kotak + label + "Vehicles detected: N"); raw=1 frame asli
   GET  /api/roi?location=                  polygon ROI tersimpan
   GET  /api/devices                        status perangkat (online, baterai, RSSI, versi)
   GET  /api/device/config?location=&role=  konfigurasi firmware (fallback HTTP kalau MQTT mati)
@@ -41,7 +44,8 @@ def _parse_ts(value: str) -> datetime:
 
 
 def create_router(ctx) -> APIRouter:
-    """ctx: objek dengan CONFIG, supabase, fetch_cctv_frame, LATEST_PROGRAMS, LATEST_FRAMES, bus."""
+    """ctx: objek dengan CONFIG, supabase, fetch_cctv_frame, LATEST_PROGRAMS, LATEST_FRAMES,
+    LATEST_DETECTIONS, render_detections, bus."""
     router = APIRouter()
     cfg_all = lambda: ctx.CONFIG.setdefault("locations", {})   # noqa: E731
 
@@ -147,6 +151,7 @@ def create_router(ctx) -> APIRouter:
                 "yellow_seconds": latest.get("yellow_seconds"),
                 "green_seconds": latest.get("green_seconds"),
                 "updated_at": latest.get("updated_at"),
+                "detected_at": (ctx.LATEST_DETECTIONS.get(loc) or {}).get("ts"),
             })
         return {"locations": out, "mqtt_connected": ctx.bus.connected}
 
@@ -245,6 +250,43 @@ def create_router(ctx) -> APIRouter:
         if cached:
             return Response(content=cached[0], media_type="image/jpeg", headers={"Cache-Control": "no-store"})
         raise HTTPException(404, "belum ada frame untuk lokasi ini")
+
+    def detection_or_404(loc: str) -> dict:
+        det = ctx.LATEST_DETECTIONS.get(loc)
+        if not det:
+            raise HTTPException(404, "belum ada hasil deteksi untuk lokasi ini")
+        return det
+
+    def _flag(q, name: str, default: str) -> bool:
+        return (q.get(name) or default).lower() in ("1", "true", "yes", "on")
+
+    @router.get("/api/detections")
+    async def detections(request: Request):
+        loc = loc_or_404(request.query_params.get("location", ""))
+        det = detection_or_404(loc)
+        out = {k: v for k, v in det.items() if k != "jpeg"}
+        out["location"] = loc
+        out["age_seconds"] = round(time.time() - det["ts"], 1)
+        return out
+
+    @router.get("/api/detections/image")
+    async def detections_image(request: Request):
+        q = request.query_params
+        loc = loc_or_404(q.get("location", ""))
+        det = detection_or_404(loc)
+        if _flag(q, "raw", "0"):
+            body = det["jpeg"]
+        else:
+            body = await asyncio.to_thread(
+                ctx.render_detections, det["jpeg"], det["boxes"], det.get("roi"), det.get("roi_label", ""),
+                _flag(q, "outside", "1"), _flag(q, "roi", "1"),
+            )
+        headers = {"Cache-Control": "no-store", "X-Detected-At": str(det["ts"])}
+        if _flag(q, "download", "0"):
+            stamp = datetime.fromtimestamp(det["ts"]).strftime("%Y%m%d-%H%M%S")
+            kind = "frame" if _flag(q, "raw", "0") else "roi"
+            headers["Content-Disposition"] = f'attachment; filename="{slug_of(loc)}-{kind}-{stamp}.jpg"'
+        return Response(content=body, media_type="image/jpeg", headers=headers)
 
     @router.get("/api/roi")
     async def get_roi(request: Request):
