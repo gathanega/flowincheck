@@ -1,0 +1,74 @@
+# Salin ke config.yaml lalu isi nilainya. Dibaca app.py saat start.
+
+supabase:
+  url: "https://ISI_PROJECT_REF.supabase.co"
+  service_key: "ISI_SERVICE_ROLE_KEY"   # hanya di server, JANGAN dimasukkan ke website
+
+# Token untuk masuk ke tab Admin di dashboard (kirim sebagai "Authorization: Bearer ...").
+# Pakai string acak panjang, mis.:  python3 -c "import secrets; print(secrets.token_urlsafe(32))"
+# Kosong = fitur admin dimatikan.
+# Pakai HTTPS di depan server (nginx), kalau tidak token terkirim tanpa enkripsi.
+admin_token: ""
+
+timezone: "Asia/Jakarta"     # dipakai grafik per jam
+# cors_origins: ["https://dashboard.contoh.id"]   # default semua origin (["*"])
+
+# MQTT bersifat opsional. Perangkat tetap jalan lewat HTTP kalau enabled: false.
+# Topik: <prefix>/<slug>/status | config | cmd | device/<device_id>/state   (lihat README)
+mqtt:
+  enabled: false
+  host: "localhost"
+  port: 1883
+  username: ""
+  password: ""
+  prefix: "greenflow"
+  # Untuk update live di dashboard (browser memakai MQTT over WebSocket).
+  # Kosongkan ws_url = dashboard cukup polling API. Pakai user broker yang HANYA boleh
+  # subscribe greenflow/+/status dan greenflow/+/device/+/state (kredensial ini terlihat publik).
+  ws_url: ""                 # mis. "wss://mqtt.contoh.id:8084/mqtt"
+  ws_username: ""
+  ws_password: ""
+
+# dashboard_file: "dashboard.html"   # disajikan di http://<server>/
+
+cctv_poll_interval_seconds: 10
+
+# Satu entri per persimpangan/lokasi. Nama `location` di sini HARUS sama dengan:
+#   - ?location=... yang dikirim firmware ESP32-S3 (Mode A)
+#   - LOCATION_NAME di firmware ESP32-C6
+# `slug` (opsional) = bagian topik MQTT; default dari nama lokasi (huruf kecil, tanda hubung)
+# dan HARUS sama dengan LOCATION_SLUG di kedua firmware.
+# Koordinat (lat/lng), ROI, ambang, dan program lampu bisa diubah dari tab Admin;
+# nilai di sini hanya nilai awal, pengubahan lewat dashboard disimpan di runtime_state.json.
+locations:
+  "Malang-ESP32":
+    mode: esp32              # lokasi ini disuplai kamera ESP32-S3 (Mode A)
+    device_id: "esp32-malang-1"
+    lat: -7.9797             # CONTOH, ganti dengan titik sebenarnya (atau klik peta di tab Admin)
+    lng: 112.6304
+    calibration_max_count: 20
+    density_low: 5           # di bawah ini -> LANCAR
+    density_high: 15         # sama atau di atas ini -> MACET
+
+  "Malang-CCTV":
+    mode: cctv
+    cctv_snapshot_url: "https://cctvmalang.24hour.id/twentyfourhourid/proxy.php?id=ISI_ID_KAMERA"
+    cctv_stream_type: hls    # hls | mjpeg | snapshot
+    device_id: "cctv-malang"
+    lat: -7.9797             # CONTOH, ganti dengan titik sebenarnya
+    lng: 112.6304
+    calibration_max_count: 25
+    density_low: 6
+    density_high: 18
+    roi_label: "jalur kanan (arah timur, dekat kamera)"
+    roi:                     # bisa digambar langsung di tab Admin > ROI
+      - [0.90, 0.09]
+      - [0.81, 0.25]
+      - [0.62, 0.49]
+      - [0.48, 0.74]
+      - [0.44, 0.90]
+      - [0.53, 1.00]
+      - [0.78, 1.00]
+      - [0.94, 0.86]
+      - [0.97, 0.50]
+      - [0.94, 0.18]

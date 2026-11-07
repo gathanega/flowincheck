@@ -1,0 +1,2031 @@
+<!doctype html>
+<html lang="id" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Flowincheck — Dashboard</title>
+    <!--
+      Flowincheck dashboard (satu file).
+      Sumber data: API server FastAPI (app.py + admin_api.py) + MQTT over WebSocket (opsional, live).
+      - Disajikan langsung oleh server di  http://<server>/   (taruh file ini di samping app.py)
+      - Atau dibuka dari domain lain:      dashboard.html?api=https://server-kamu
+      - Mode contoh tanpa server:          dashboard.html?demo=1
+      - Tema:                              ?theme=dark | light  (atau tombol ◐ di header)
+    -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
+    <style>
+      :root {
+        --bg: #f3f8f5; --card: #ffffff; --card-2: #f8fbf9; --text: #12261b; --muted: #6f8a7a;
+        --line: #e3eee8; --brand: #167a43; --brand-2: #22a35a; --brand-soft: #e7f5ec;
+        --lancar: #16a34a; --padat: #d97706; --macet: #dc2626; --info: #2563eb;
+        --lancar-soft: #dcfce7; --padat-soft: #fef3c7; --macet-soft: #fee2e2; --info-soft: #dbeafe;
+        --shadow: 0 1px 2px rgba(16, 40, 28, .05), 0 6px 22px rgba(16, 40, 28, .06);
+        --radius: 16px; --header-h: 68px;
+      }
+      [data-theme="dark"] {
+        --bg: #0b1410; --card: #111d17; --card-2: #0e1813; --text: #e4f1e9; --muted: #8aa596;
+        --line: #1e3127; --brand: #34c26f; --brand-2: #22a35a; --brand-soft: #143021;
+        --lancar-soft: #12301f; --padat-soft: #3a2a0c; --macet-soft: #3b1414; --info-soft: #14233f;
+        --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 6px 22px rgba(0, 0, 0, .25);
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; }
+      body { font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+      a { color: var(--brand); }
+      button, input, select, textarea { font: inherit; color: inherit; }
+      [hidden] { display: none !important; }
+
+      /* ---------- splash & loader ---------- */
+      #splash { position: fixed; inset: 0; z-index: 2000; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; transition: opacity .45s; }
+      #splash.out { opacity: 0; pointer-events: none; }
+      #splash img { width: 92px; animation: pulse 1.6s ease-in-out infinite; }
+      #splash .splash-text { color: var(--muted); font-weight: 600; }
+      @keyframes pulse { 50% { transform: scale(1.06); opacity: .8; } }
+      #topbar { position: fixed; top: 0; left: 0; height: 3px; width: 0; z-index: 1500; background: linear-gradient(90deg, var(--brand-2), var(--brand)); box-shadow: 0 0 8px var(--brand-2); transition: width .3s ease, opacity .3s; opacity: 0; }
+      #topbar.on { opacity: 1; }
+      .tab-loader { position: fixed; left: 0; right: 0; top: var(--header-h); bottom: 0; z-index: 900; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; background: color-mix(in srgb, var(--bg) 82%, transparent); backdrop-filter: blur(4px); opacity: 0; pointer-events: none; transition: opacity .2s; }
+      .tab-loader.on { opacity: 1; pointer-events: auto; }
+      .tab-loader .lbl { font-weight: 600; color: var(--muted); }
+      .spinner { width: 44px; height: 44px; border-radius: 50%; border: 4px solid var(--brand-soft); border-top-color: var(--brand); animation: spin .8s linear infinite; }
+      .spinner.sm { width: 18px; height: 18px; border-width: 3px; }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      .skeleton { background: linear-gradient(90deg, var(--card-2) 25%, var(--line) 50%, var(--card-2) 75%); background-size: 200% 100%; animation: shimmer 1.2s infinite; border-radius: 8px; min-height: 14px; }
+      @keyframes shimmer { to { background-position: -200% 0; } }
+
+      /* ---------- header ---------- */
+      .site-header { position: sticky; top: 0; z-index: 1000; background: color-mix(in srgb, var(--card) 92%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+      .header-inner { max-width: 1280px; margin: 0 auto; height: var(--header-h); padding: 0 20px; display: flex; align-items: center; gap: 20px; }
+      .brand { display: flex; align-items: center; gap: 10px; text-decoration: none; color: var(--text); }
+      .brand img { width: 38px; height: 38px; object-fit: contain; }
+      .brand-name { font-weight: 800; font-size: 18px; letter-spacing: -.02em; }
+      .brand-name b { color: var(--brand); }
+      .brand-sub { font-size: 11.5px; color: var(--muted); margin-top: -3px; }
+      .nav { display: flex; gap: 4px; background: var(--card-2); border: 1px solid var(--line); padding: 4px; border-radius: 12px; }
+      .nav a { text-decoration: none; color: var(--muted); font-weight: 600; padding: 7px 14px; border-radius: 9px; display: flex; align-items: center; gap: 7px; transition: .15s; }
+      .nav a svg { width: 16px; height: 16px; }
+      .nav a:hover { color: var(--text); }
+      .nav a.active { background: var(--card); color: var(--brand); box-shadow: var(--shadow); }
+      .header-tools { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+      .conn { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--muted); padding: 5px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); white-space: nowrap; }
+      .conn i { width: 8px; height: 8px; border-radius: 50%; background: #9ca3af; }
+      .conn.ok i { background: var(--lancar); box-shadow: 0 0 0 3px var(--lancar-soft); }
+      .conn.bad i { background: var(--macet); box-shadow: 0 0 0 3px var(--macet-soft); }
+      .icon-btn { width: 36px; height: 36px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); cursor: pointer; display: grid; place-items: center; }
+      .icon-btn svg { width: 18px; height: 18px; }
+
+      /* ---------- layout ---------- */
+      .page { max-width: 1280px; margin: 0 auto; padding: 24px 20px 40px; min-height: calc(100vh - var(--header-h) - 70px); }
+      .page-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 18px; flex-wrap: wrap; }
+      .page-title { font-size: 24px; font-weight: 800; letter-spacing: -.02em; margin: 0; }
+      .page-sub { color: var(--muted); margin: 2px 0 0; }
+      .grid { display: grid; gap: 16px; }
+      .grid-4 { grid-template-columns: repeat(4, 1fr); }
+      .grid-3 { grid-template-columns: repeat(3, 1fr); }
+      .grid-2 { grid-template-columns: 1fr 1fr; }
+      .grid-2-1 { grid-template-columns: 2fr 1fr; }
+      .grid-1-2 { grid-template-columns: minmax(300px, 1fr) 2fr; }
+      .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; box-shadow: var(--shadow); min-width: 0; }
+      .card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+      .card-title { margin: 0; font-size: 15px; font-weight: 700; }
+      .section-title { font-size: 15px; font-weight: 700; margin: 24px 0 12px; }
+      .muted { color: var(--muted); }
+      .small { font-size: 12px; }
+      .mono { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12.5px; }
+      .row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+      .spacer { flex: 1; }
+
+      /* ---------- stats ---------- */
+      .stat-label { font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+      .stat-row { display: flex; align-items: center; gap: 12px; margin: 8px 0 4px; }
+      .stat-icon { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; background: var(--brand-soft); color: var(--brand); flex: none; }
+      .stat-icon svg { width: 24px; height: 24px; }
+      .stat-value { font-size: 28px; font-weight: 800; letter-spacing: -.02em; }
+      .stat-note { font-size: 12.5px; color: var(--muted); }
+      .text-lancar { color: var(--lancar) !important; } .text-padat { color: var(--padat) !important; } .text-macet { color: var(--macet) !important; }
+      .stat-icon.text-lancar { background: var(--lancar-soft); } .stat-icon.text-padat { background: var(--padat-soft); } .stat-icon.text-macet { background: var(--macet-soft); }
+      .pill { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; font-weight: 700; padding: 3px 10px; border-radius: 999px; background: var(--card-2); color: var(--muted); border: 1px solid var(--line); white-space: nowrap; }
+      .pill-lancar { background: var(--lancar-soft); color: var(--lancar); border-color: transparent; }
+      .pill-padat { background: var(--padat-soft); color: var(--padat); border-color: transparent; }
+      .pill-macet { background: var(--macet-soft); color: var(--macet); border-color: transparent; }
+      .pill-info { background: var(--info-soft); color: var(--info); border-color: transparent; }
+      .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; }
+      .bg-merah { background: var(--macet); } .bg-kuning { background: #eab308; } .bg-hijau { background: var(--lancar); }
+
+      /* ---------- program lampu ---------- */
+      .program { display: flex; gap: 22px; align-items: center; }
+      .signal { background: #1a2620; border-radius: 18px; padding: 12px 10px; display: flex; flex-direction: column; gap: 9px; flex: none; }
+      .lamp { width: 34px; height: 34px; border-radius: 50%; background: #2f3d36; transition: .3s; }
+      .lamp.on.merah { background: #ef4444; box-shadow: 0 0 18px #ef4444; }
+      .lamp.on.kuning { background: #facc15; box-shadow: 0 0 18px #facc15; }
+      .lamp.on.hijau { background: #22c55e; box-shadow: 0 0 18px #22c55e; }
+      .program-body { flex: 1; min-width: 0; }
+      .program-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+      .mode { font-size: 20px; font-weight: 800; }
+      .lights { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 14px 0; }
+      .light { background: var(--card-2); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+      .light-name { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--muted); font-weight: 600; }
+      .light-value { font-size: 22px; font-weight: 800; margin-top: 2px; }
+      .light-value small { font-size: 12px; color: var(--muted); font-weight: 600; margin-left: 4px; }
+      .cycle { display: flex; height: 10px; border-radius: 99px; overflow: hidden; background: var(--line); }
+      .cycle span { transition: width .5s; }
+      .cycle-caption { font-size: 12px; color: var(--muted); margin-top: 6px; }
+
+      /* ---------- kelas kendaraan ---------- */
+      .bars { display: flex; flex-direction: column; gap: 10px; }
+      .bar-row { display: grid; grid-template-columns: 92px 1fr 40px; align-items: center; gap: 10px; font-size: 13px; }
+      .bar-track { height: 9px; background: var(--card-2); border: 1px solid var(--line); border-radius: 99px; overflow: hidden; }
+      .bar-fill { height: 100%; background: linear-gradient(90deg, var(--brand-2), var(--brand)); border-radius: 99px; transition: width .5s; }
+
+      /* ---------- tombol & form ---------- */
+      .btn { display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 8px 14px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); font-weight: 600; font-size: 13px; cursor: pointer; text-decoration: none; color: var(--text); transition: .15s; white-space: nowrap; }
+      .btn:hover { border-color: var(--brand); color: var(--brand); }
+      .btn:disabled { opacity: .55; cursor: not-allowed; }
+      .btn-solid { background: var(--brand); border-color: var(--brand); color: #fff; }
+      .btn-solid:hover { background: var(--brand-2); color: #fff; }
+      .btn-danger { color: var(--macet); }
+      .btn-danger:hover { border-color: var(--macet); color: var(--macet); background: var(--macet-soft); }
+      .btn-sm { padding: 5px 10px; font-size: 12px; border-radius: 8px; }
+      .btn svg { width: 15px; height: 15px; }
+      .segmented { display: inline-flex; background: var(--card-2); border: 1px solid var(--line); border-radius: 10px; padding: 3px; }
+      .segmented button { border: 0; background: none; padding: 5px 11px; border-radius: 7px; font-weight: 600; font-size: 12.5px; color: var(--muted); cursor: pointer; }
+      .segmented button.active { background: var(--card); color: var(--brand); box-shadow: var(--shadow); }
+      .select, .input, textarea.input { height: 36px; padding: 0 11px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); outline: none; min-width: 0; }
+      textarea.input { height: auto; padding: 9px 11px; resize: vertical; }
+      .select:focus, .input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
+      .field { display: flex; flex-direction: column; gap: 5px; }
+      .field > span { font-size: 12.5px; font-weight: 600; color: var(--muted); }
+      .field > small { font-size: 11.5px; color: var(--muted); }
+      .form-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; }
+      .range-wrap { display: flex; align-items: center; gap: 10px; }
+      .range-wrap input[type="range"] { flex: 1; accent-color: var(--brand); }
+      .range-wrap output { min-width: 34px; text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+      .switch { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--card-2); cursor: pointer; }
+      .switch input { appearance: none; width: 38px; height: 22px; border-radius: 99px; background: var(--line); position: relative; cursor: pointer; transition: .2s; flex: none; }
+      .switch input::after { content: ""; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: .2s; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
+      .switch input:checked { background: var(--brand); }
+      .switch input:checked::after { left: 19px; }
+      .form-actions { display: flex; gap: 10px; align-items: center; margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--line); flex-wrap: wrap; }
+      .hint { background: var(--card-2); border: 1px dashed var(--line); border-radius: 12px; padding: 10px 12px; color: var(--muted); font-size: 12.5px; }
+      .hint b { color: var(--text); }
+      fieldset { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px 14px; margin: 0; }
+      legend { font-weight: 700; font-size: 13px; padding: 0 6px; }
+
+      /* ---------- tabel ---------- */
+      .table-wrap { overflow-x: auto; }
+      table { width: 100%; border-collapse: collapse; }
+      th { text-align: left; font-size: 11.5px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 700; padding: 9px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+      td { padding: 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+      tr:last-child td { border-bottom: 0; }
+      td.empty { text-align: center; color: var(--muted); padding: 26px; }
+      tr.flash td { animation: flash 1.6s; }
+      @keyframes flash { from { background: var(--brand-soft); } }
+
+      /* ---------- peta ---------- */
+      .map { height: 540px; border-radius: 12px; overflow: hidden; border: 1px solid var(--line); z-index: 0; }
+      .map.sm { height: 380px; }
+      [data-theme="dark"] .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.85) contrast(.9) saturate(.6); }
+      .leaflet-container { font-family: inherit; background: var(--card-2); }
+      .leaflet-popup-content-wrapper, .leaflet-popup-tip { background: var(--card); color: var(--text); }
+      .leaflet-popup-content { margin: 12px 14px; font-size: 13px; }
+      .pin { position: relative; width: 38px; height: 38px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); display: grid; place-items: center; border: 3px solid #fff; box-shadow: 0 4px 12px rgba(0,0,0,.3); background: #6b7280; }
+      .pin span { transform: rotate(45deg); color: #fff; font-weight: 800; font-size: 12.5px; }
+      .pin.lancar { background: var(--lancar); } .pin.padat { background: var(--padat); } .pin.macet { background: var(--macet); }
+      .pin.sel { outline: 4px solid color-mix(in srgb, var(--brand) 45%, transparent); }
+      .pin.macet::before { content: ""; position: absolute; inset: -9px; border-radius: 50%; border: 3px solid var(--macet); animation: ping 1.6s infinite; }
+      @keyframes ping { from { opacity: .9; transform: scale(.7); } to { opacity: 0; transform: scale(1.5); } }
+      .coord-box { background: var(--card); color: var(--text); padding: 5px 9px; border-radius: 8px; border: 1px solid var(--line); font: 600 12px ui-monospace, Consolas, monospace; box-shadow: var(--shadow); }
+      .legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+      .legend span { display: inline-flex; align-items: center; gap: 5px; }
+      .loc-list { display: flex; flex-direction: column; gap: 10px; max-height: 540px; overflow: auto; padding-right: 2px; }
+      .loc-item { border: 1px solid var(--line); border-radius: 12px; padding: 12px; cursor: pointer; background: var(--card); transition: .15s; text-align: left; width: 100%; }
+      .loc-item:hover { border-color: var(--brand); }
+      .loc-item.sel { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
+      .loc-item .t { font-weight: 700; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+      .loc-item .m { font-size: 12px; color: var(--muted); margin-top: 4px; display: flex; gap: 10px; flex-wrap: wrap; }
+      .warn { color: var(--padat); font-weight: 600; }
+
+      /* ---------- frame + ROI ---------- */
+      .stage { position: relative; width: 100%; aspect-ratio: var(--ar, 16 / 9); background: #0b1410 repeating-linear-gradient(45deg, transparent 0 12px, rgba(255,255,255,.03) 12px 24px); border-radius: 12px; overflow: hidden; user-select: none; touch-action: none; }
+      .stage img, .stage video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: fill; }
+      .stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+      .stage .ph { position: absolute; inset: 0; display: grid; place-items: center; color: #9fb8aa; text-align: center; padding: 20px; font-weight: 600; }
+      .stage.edit canvas { cursor: crosshair; }
+      .stage .badge { position: absolute; left: 10px; bottom: 10px; background: rgba(0,0,0,.6); color: #fff; font-size: 11.5px; font-weight: 600; padding: 4px 9px; border-radius: 99px; }
+      .stage .badge.r { left: auto; right: 10px; }
+      .toolbar { display: flex; gap: 6px; flex-wrap: wrap; margin: 12px 0; }
+
+      /* ---------- admin ---------- */
+      .admin-layout { display: grid; grid-template-columns: 230px 1fr; gap: 16px; align-items: start; }
+      .side { position: sticky; top: calc(var(--header-h) + 16px); display: flex; flex-direction: column; gap: 4px; padding: 10px; }
+      .side button { text-align: left; border: 0; background: none; padding: 9px 12px; border-radius: 10px; font-weight: 600; color: var(--muted); cursor: pointer; display: flex; align-items: center; gap: 9px; }
+      .side button svg { width: 17px; height: 17px; flex: none; }
+      .side button:hover { color: var(--text); background: var(--card-2); }
+      .side button.active { background: var(--brand-soft); color: var(--brand); }
+      .side hr { border: 0; border-top: 1px solid var(--line); margin: 6px 0; width: 100%; }
+      .login { max-width: 420px; margin: 40px auto; text-align: center; }
+      .login img { width: 64px; }
+      .sync { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; }
+      .kv { display: grid; grid-template-columns: 140px 1fr; gap: 6px 12px; font-size: 13px; }
+      .kv dt { color: var(--muted); }
+      .kv dd { margin: 0; font-weight: 600; word-break: break-all; }
+      .fw-head { display: flex; gap: 14px; align-items: center; padding: 12px; border-radius: 12px; background: var(--card-2); border: 1px solid var(--line); margin-bottom: 14px; flex-wrap: wrap; }
+      .fw-chip { width: 46px; height: 46px; border-radius: 12px; display: grid; place-items: center; background: var(--brand-soft); color: var(--brand); flex: none; }
+      .fw-chip svg { width: 26px; height: 26px; }
+
+      /* ---------- toast & footer ---------- */
+      #toasts { position: fixed; right: 18px; bottom: 18px; z-index: 3000; display: flex; flex-direction: column; gap: 8px; max-width: min(380px, calc(100vw - 36px)); }
+      .toast { background: var(--card); border: 1px solid var(--line); border-left: 4px solid var(--brand); border-radius: 12px; padding: 11px 14px; box-shadow: var(--shadow); font-size: 13px; animation: tin .25s; }
+      .toast.err { border-left-color: var(--macet); } .toast.warn { border-left-color: var(--padat); }
+      @keyframes tin { from { opacity: 0; transform: translateY(10px); } }
+      .site-footer { display: flex; align-items: center; justify-content: center; gap: 8px; color: var(--muted); font-size: 12.5px; padding: 18px; border-top: 1px solid var(--line); }
+      .site-footer img { width: 20px; }
+      .demo-banner { background: var(--padat-soft); color: var(--padat); text-align: center; font-weight: 600; font-size: 12.5px; padding: 6px; }
+
+      @media (max-width: 1080px) {
+        .grid-4 { grid-template-columns: repeat(2, 1fr); }
+        .grid-2-1, .grid-1-2, .admin-layout { grid-template-columns: 1fr; }
+        .side { position: static; flex-direction: row; overflow-x: auto; }
+        .side hr { display: none; }
+        .side button { white-space: nowrap; }
+        .brand-sub { display: none; }
+        :root { --header-h: 112px; }
+        .header-inner { flex-wrap: wrap; height: auto; padding: 10px 16px; gap: 10px; }
+        .nav { order: 3; width: 100%; justify-content: space-between; }
+        .nav a { flex: 1; justify-content: center; }
+        #loc-select { max-width: 200px; }
+      }
+      @media (max-width: 760px) {
+        .header-inner { padding: 10px 14px; }
+        .nav a { padding: 7px 8px; font-size: 12.5px; }
+        #loc-select { max-width: 130px; }
+        .nav a svg { display: none; }
+        .conn span { display: none; }
+        .grid-3, .grid-2, .grid-4 { grid-template-columns: 1fr; }
+        .program { flex-direction: column; align-items: stretch; }
+        .signal { flex-direction: row; justify-content: center; }
+        .map { height: 380px; }
+        .page { padding: 16px 14px 30px; }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="splash">
+      <img src="pictures/Color_Logo_Png.png" alt="Logo Flowincheck" onerror="this.style.display='none'" />
+      <div class="spinner"></div>
+      <div class="splash-text">Memuat Flowincheck…</div>
+    </div>
+    <div id="topbar"></div>
+    <div class="demo-banner" id="demo-banner" hidden>Mode contoh (demo) — data simulasi, tidak terhubung ke server</div>
+
+    <header class="site-header">
+      <div class="header-inner">
+        <a class="brand" href="#dashboard">
+          <img src="pictures/Color_Logo_Png.png" alt="Logo Flowincheck" onerror="this.style.display='none'" />
+          <div>
+            <div class="brand-name">Flow<b>incheck</b></div>
+            <div class="brand-sub">Lampu lalu lintas adaptif</div>
+          </div>
+        </a>
+        <nav class="nav" id="nav">
+          <a href="#dashboard" data-tab="dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>Dashboard</a>
+          <a href="#pantauan" data-tab="pantauan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>Pantauan</a>
+          <a href="#riwayat" data-tab="riwayat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Riwayat</a>
+          <a href="#admin" data-tab="admin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg>Admin</a>
+        </nav>
+        <div class="header-tools">
+          <select id="loc-select" class="select" aria-label="Pilih lokasi"><option value="">Semua lokasi</option></select>
+          <span class="conn" id="conn-api" title="Koneksi ke API server"><i></i><span>API</span></span>
+          <span class="conn" id="conn-mqtt" title="MQTT live"><i></i><span>MQTT</span></span>
+          <button class="icon-btn" id="theme-btn" type="button" title="Ganti tema terang/gelap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z" fill="currentColor"/></svg></button>
+        </div>
+      </div>
+    </header>
+
+    <div class="tab-loader" id="tab-loader"><div class="spinner"></div><div class="lbl" id="tab-loader-text">Memuat…</div></div>
+
+    <main class="page">
+      <!-- =============================== DASHBOARD =============================== -->
+      <section class="view" data-view="dashboard" hidden>
+        <div class="page-head">
+          <div>
+            <h1 class="page-title">Dashboard lalu lintas</h1>
+            <p class="page-sub" id="dash-sub">Terbuka untuk umum, tanpa login</p>
+          </div>
+          <span class="pill" id="status-line">Memuat data…</span>
+        </div>
+
+        <section class="grid grid-4">
+          <article class="card">
+            <div class="stat-label">Status lalu lintas</div>
+            <div class="stat-row">
+              <div class="stat-icon" id="icon-traffic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 11l1.5-4.5A2 2 0 0 1 8.4 5h7.2a2 2 0 0 1 1.9 1.5L19 11"/><rect x="3.5" y="11" width="17" height="6" rx="1.5"/><circle cx="7" cy="17.5" r="1.4" fill="currentColor"/><circle cx="17" cy="17.5" r="1.4" fill="currentColor"/></svg></div>
+              <div class="stat-value" id="stat-traffic">–</div>
+            </div>
+            <div class="stat-note" id="stat-elapsed">Diperbarui – detik lalu</div>
+          </article>
+          <article class="card">
+            <div class="stat-label">Kendaraan di jalur ROI</div>
+            <div class="stat-row">
+              <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20L9 4M20 20L15 4M12 6v2M12 11v2M12 16v2"/></svg></div>
+              <div class="stat-value" id="stat-vehicle">–</div>
+            </div>
+            <div class="stat-note" id="stat-lane">–</div>
+          </article>
+          <article class="card">
+            <div class="stat-label">Semua jalur (seluruh frame)</div>
+            <div class="stat-row">
+              <div class="stat-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18"/></svg></div>
+              <div class="stat-value" id="stat-all">–</div>
+            </div>
+            <div class="stat-note">Pembanding tanpa filter ROI</div>
+          </article>
+          <article class="card">
+            <div class="stat-label">Waktu &amp; tanggal</div>
+            <div class="stat-value" id="stat-time" style="margin-top: 8px">–</div>
+            <div class="stat-note" id="stat-date">–</div>
+          </article>
+        </section>
+
+        <section class="grid grid-2-1" style="margin-top: 16px">
+          <article class="card program">
+            <div class="signal" aria-hidden="true"><span class="lamp merah"></span><span class="lamp kuning"></span><span class="lamp hijau"></span></div>
+            <div class="program-body">
+              <div class="program-head">
+                <div>
+                  <div class="stat-label">Program lampu saat ini</div>
+                  <div class="mode" id="stat-mode">–</div>
+                </div>
+                <span class="pill pill-info" id="mode-note">Menunggu data</span>
+              </div>
+              <div class="lights">
+                <div class="light"><div class="light-name"><span class="dot bg-merah"></span>Merah</div><div class="light-value" id="stat-red">–</div></div>
+                <div class="light"><div class="light-name"><span class="dot bg-kuning"></span>Kuning</div><div class="light-value" id="stat-yellow">–</div></div>
+                <div class="light"><div class="light-name"><span class="dot bg-hijau"></span>Hijau</div><div class="light-value" id="stat-green">–</div></div>
+              </div>
+              <div class="cycle" id="cycle"><span class="bg-merah" style="width:0"></span><span class="bg-hijau" style="width:0"></span><span class="bg-kuning" style="width:0"></span></div>
+              <div class="cycle-caption" id="cycle-caption">Proporsi durasi satu siklus lampu</div>
+            </div>
+          </article>
+          <article class="card">
+            <div class="card-head"><h2 class="card-title">Jenis kendaraan (jalur ROI)</h2></div>
+            <div class="bars" id="class-bars"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
+          </article>
+        </section>
+
+        <section class="grid grid-2-1" style="margin-top: 16px">
+          <article class="card">
+            <div class="card-head">
+              <h2 class="card-title">Rata-rata kendaraan per jam</h2>
+              <div class="segmented" id="chart-range">
+                <button type="button" class="active" data-range="today">Hari ini</button>
+                <button type="button" data-range="yesterday">Kemarin</button>
+                <button type="button" data-range="7days">7 hari</button>
+              </div>
+            </div>
+            <div style="position: relative; height: 280px"><canvas id="hourly-chart"></canvas></div>
+            <div class="stat-note" id="chart-caption" style="margin-top: 8px">Memuat data grafik…</div>
+          </article>
+          <article class="card">
+            <div class="card-head"><h2 class="card-title">Lokasi</h2><a class="btn btn-sm" href="#pantauan">Buka peta</a></div>
+            <div class="loc-list" id="dash-locs" style="max-height: 320px"></div>
+          </article>
+        </section>
+
+        <div class="card-head" style="margin: 24px 0 12px"><h2 class="card-title">Data terbaru</h2><a class="btn btn-sm" href="#riwayat">Lihat semua</a></div>
+        <section class="card">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Waktu</th><th>Lokasi</th><th>Jalur ROI</th><th>Semua jalur</th><th>Hijau</th><th>Status</th></tr></thead>
+              <tbody id="dash-table"><tr><td colspan="6" class="empty">Belum ada data</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+
+      <!-- =============================== PANTAUAN =============================== -->
+      <section class="view" data-view="pantauan" hidden>
+        <div class="page-head">
+          <div>
+            <h1 class="page-title">Pantauan lokasi</h1>
+            <p class="page-sub">Titik koordinat tiap persimpangan, status live, dan kamera dengan jalur ROI</p>
+          </div>
+          <div class="legend">
+            <span><i class="dot" style="background: var(--lancar)"></i>Lancar</span>
+            <span><i class="dot" style="background: var(--padat)"></i>Padat</span>
+            <span><i class="dot" style="background: var(--macet)"></i>Macet</span>
+            <span><i class="dot" style="background: #6b7280"></i>Belum ada data</span>
+          </div>
+        </div>
+        <section class="grid grid-2-1">
+          <article class="card" style="padding: 10px">
+            <div id="mon-map" class="map"></div>
+          </article>
+          <article class="card">
+            <div class="card-head"><h2 class="card-title">Daftar titik</h2><button class="btn btn-sm" id="mon-fit" type="button">Tampilkan semua</button></div>
+            <div class="loc-list" id="mon-list"></div>
+          </article>
+        </section>
+
+        <section class="card" style="margin-top: 16px">
+          <div class="card-head">
+            <div>
+              <h2 class="card-title" id="mon-title">Kamera</h2>
+              <div class="stat-note" id="mon-meta">Pilih titik di peta atau di daftar</div>
+            </div>
+            <div class="row">
+              <label class="switch" style="padding: 5px 10px"><span class="small">ROI</span><input type="checkbox" id="mon-roi" checked /></label>
+              <label class="switch" style="padding: 5px 10px"><span class="small">Auto 5 dtk</span><input type="checkbox" id="mon-auto" checked /></label>
+              <button class="btn btn-sm" id="mon-refresh" type="button">Ambil frame</button>
+              <button class="btn btn-sm btn-solid" id="mon-live" type="button" hidden>Live CCTV</button>
+            </div>
+          </div>
+          <div class="grid grid-2-1">
+            <div>
+              <div class="stage" id="mon-stage"><div class="ph" id="mon-ph">Belum ada frame</div><img id="mon-img" alt="" hidden /><video id="mon-video" muted playsinline hidden></video><canvas id="mon-canvas"></canvas><span class="badge" id="mon-badge" hidden></span></div>
+            </div>
+            <div>
+              <dl class="kv" id="mon-kv"></dl>
+            </div>
+          </div>
+        </section>
+      </section>
+
+      <!-- =============================== RIWAYAT =============================== -->
+      <section class="view" data-view="riwayat" hidden>
+        <div class="page-head">
+          <div>
+            <h1 class="page-title">Riwayat deteksi</h1>
+            <p class="page-sub" id="hist-sub">Data dari tabel greenflow_logs</p>
+          </div>
+          <div class="row">
+            <select class="select" id="hist-limit"><option>20</option><option selected>50</option><option>100</option><option>200</option></select>
+            <button class="btn" id="hist-refresh" type="button">Muat ulang</button>
+            <button class="btn btn-solid" id="hist-csv" type="button">Unduh CSV</button>
+          </div>
+        </div>
+        <section class="card">
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Waktu</th><th>Lokasi</th><th>Perangkat</th><th>Jalur ROI</th><th>Semua jalur</th><th>Mobil</th><th>Motor</th><th>Bus</th><th>Truk</th><th>Hijau</th><th>Status</th></tr></thead>
+              <tbody id="hist-table"><tr><td colspan="11" class="empty">Belum ada data</td></tr></tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+
+      <!-- =============================== ADMIN =============================== -->
+      <section class="view" data-view="admin" hidden>
+        <div class="card login" id="adm-login" hidden>
+          <img src="pictures/Color_Logo_Png.png" alt="" onerror="this.style.display='none'" />
+          <h1 class="page-title" style="margin-top: 10px">Masuk admin</h1>
+          <p class="page-sub">Masukkan <span class="mono">admin_token</span> dari config.yaml</p>
+          <form id="login-form" style="display: flex; flex-direction: column; gap: 10px; margin-top: 18px; text-align: left">
+            <input class="input" type="password" id="login-token" placeholder="Token admin" autocomplete="current-password" required />
+            <label class="row small muted"><input type="checkbox" id="login-remember" /> Ingat di perangkat ini</label>
+            <button class="btn btn-solid" type="submit" id="login-btn">Masuk</button>
+            <div class="stat-note" id="login-msg"></div>
+          </form>
+        </div>
+
+        <div id="adm-panel" hidden>
+          <div class="page-head">
+            <div>
+              <h1 class="page-title">Pengaturan admin</h1>
+              <p class="page-sub">Perubahan disimpan di server (runtime_state.json) dan dikirim ke perangkat lewat MQTT/HTTP</p>
+            </div>
+            <div class="row">
+              <span class="small muted">Lokasi</span>
+              <select class="select" id="adm-loc"></select>
+              <button class="btn btn-danger" id="logout-btn" type="button">Keluar</button>
+            </div>
+          </div>
+          <div class="admin-layout">
+            <nav class="card side" id="adm-side">
+              <button type="button" data-sub="lokasi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>Lokasi &amp; koordinat</button>
+              <button type="button" data-sub="roi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 18L8 5l9 3 3 10z"/><circle cx="4" cy="18" r="1.6" fill="currentColor"/><circle cx="8" cy="5" r="1.6" fill="currentColor"/><circle cx="17" cy="8" r="1.6" fill="currentColor"/><circle cx="20" cy="18" r="1.6" fill="currentColor"/></svg>ROI jalur</button>
+              <button type="button" data-sub="lalin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="2" width="8" height="20" rx="3"/><circle cx="12" cy="7" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="17" r="1.6"/></svg>Ambang &amp; program</button>
+              <hr />
+              <button type="button" data-sub="kamera"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Firmware kamera</button>
+              <button type="button" data-sub="lampu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="5" width="14" height="14" rx="2"/><path d="M9 1v4M15 1v4M9 19v4M15 19v4M1 9h4M1 15h4M19 9h4M19 15h4"/></svg>Firmware lampu</button>
+              <button type="button" data-sub="perangkat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1.2" fill="currentColor"/></svg>Perangkat &amp; MQTT</button>
+            </nav>
+            <div id="adm-content"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <img src="pictures/Color_Logo_Png.png" alt="" onerror="this.style.display='none'" />
+      <span>Flowincheck · Lampu lalu lintas adaptif berbasis YOLOv8</span>
+    </footer>
+    <div id="toasts"></div>
+
+    <!-- ===== template panel admin ===== -->
+    <template id="tpl-lokasi">
+      <section class="card">
+        <div class="card-head"><div><h2 class="card-title">Titik koordinat lokasi</h2><div class="stat-note">Klik peta atau geser pin untuk memindahkan titik. Titik ini dipakai di tab Pantauan.</div></div></div>
+        <div class="grid grid-2-1">
+          <div id="adm-map" class="map sm"></div>
+          <form id="f-lokasi" style="display: flex; flex-direction: column; gap: 12px">
+            <label class="field"><span>Nama tampilan</span><input class="input" name="label" maxlength="80" placeholder="mis. Simpang Kayutangan" /></label>
+            <label class="field"><span>Latitude</span><input class="input" name="lat" inputmode="decimal" placeholder="-7.979700" /></label>
+            <label class="field"><span>Longitude</span><input class="input" name="lng" inputmode="decimal" placeholder="112.630400" /></label>
+            <label class="field"><span>Tempel koordinat (Google Maps)</span><input class="input" id="paste-coord" placeholder="-7.9797, 112.6304" /><small>Format "lat, lng" langsung terisi ke dua kolom di atas</small></label>
+            <div class="row">
+              <button class="btn btn-sm" type="button" id="geo-btn">Pakai lokasi saya</button>
+              <button class="btn btn-sm btn-danger" type="button" id="clear-coord">Hapus titik</button>
+            </div>
+            <div class="form-actions" style="margin-top: auto"><button class="btn btn-solid" type="submit">Simpan lokasi</button></div>
+          </form>
+        </div>
+      </section>
+    </template>
+
+    <template id="tpl-roi">
+      <section class="card">
+        <div class="card-head">
+          <div><h2 class="card-title">Editor ROI (jalur yang dihitung)</h2><div class="stat-note">Kendaraan dihitung kalau titik tengah kotaknya ada di dalam poligon. Koordinat disimpan 0–1 (tidak tergantung resolusi kamera).</div></div>
+          <span class="pill" id="roi-state">–</span>
+        </div>
+        <div class="grid grid-2-1">
+          <div>
+            <div class="stage edit" id="roi-stage"><div class="ph" id="roi-ph">Memuat frame…</div><img id="roi-img" alt="" hidden /><canvas id="roi-canvas"></canvas><span class="badge" id="roi-pos">x –, y –</span><span class="badge r" id="roi-count">0 titik</span></div>
+            <div class="toolbar">
+              <button class="btn btn-sm" type="button" data-roi="undo" title="Ctrl+Z">↶ Urungkan</button>
+              <button class="btn btn-sm" type="button" data-roi="del" title="Delete">Hapus titik terpilih</button>
+              <button class="btn btn-sm" type="button" data-roi="clear">Kosongkan</button>
+              <button class="btn btn-sm" type="button" data-roi="reset">Kembalikan tersimpan</button>
+              <button class="btn btn-sm" type="button" data-roi="frame">Ambil frame baru</button>
+              <span class="spacer"></span>
+              <button class="btn btn-sm" type="button" data-roi="preset-right">Preset: kanan</button>
+              <button class="btn btn-sm" type="button" data-roi="preset-left">Preset: kiri</button>
+              <button class="btn btn-sm" type="button" data-roi="preset-full">Preset: seluruh</button>
+            </div>
+            <div class="hint"><b>Klik</b> area kosong = tambah titik · <b>klik garis</b> = sisipkan titik · <b>seret</b> titik = pindah · <b>klik kanan / dobel klik</b> titik = hapus · <b>Delete</b> = hapus titik terpilih · <b>Ctrl+Z</b> = urungkan</div>
+          </div>
+          <form id="f-roi" style="display: flex; flex-direction: column; gap: 12px">
+            <label class="field"><span>Nama jalur</span><input class="input" name="roi_label" maxlength="80" placeholder="mis. jalur kanan (arah timur)" /></label>
+            <label class="field"><span>Titik (JSON, bisa diedit langsung)</span><textarea class="input mono" id="roi-json" rows="8" spellcheck="false"></textarea><small id="roi-json-msg">3–40 titik, nilai 0–1</small></label>
+            <div class="row"><button class="btn btn-sm" type="button" data-roi="copy-yaml">Salin sebagai YAML</button><button class="btn btn-sm" type="button" data-roi="preview" id="roi-preview-btn">Preview server</button></div>
+            <div class="form-actions" style="margin-top: auto">
+              <button class="btn btn-solid" type="submit">Simpan ROI</button>
+              <button class="btn btn-danger" type="button" data-roi="disable">Matikan ROI</button>
+            </div>
+          </form>
+        </div>
+      </section>
+    </template>
+
+    <template id="tpl-lalin">
+      <section class="card">
+        <div class="card-head"><div><h2 class="card-title">Ambang kepadatan</h2><div class="stat-note">Jumlah kendaraan di jalur ROI → status. Dipakai mulai frame berikutnya.</div></div></div>
+        <form id="f-thresholds">
+          <div class="form-grid">
+            <label class="field"><span>LANCAR jika kurang dari</span><input class="input" type="number" min="1" max="500" name="density_low" data-type="int" /><small>kendaraan</small></label>
+            <label class="field"><span>MACET jika minimal</span><input class="input" type="number" min="1" max="1000" name="density_high" data-type="int" /><small>di antaranya = PADAT</small></label>
+            <label class="field"><span>Kalibrasi maks.</span><input class="input" type="number" min="1" max="1000" name="calibration_max_count" data-type="int" /><small>kapasitas jalur (untuk skala)</small></label>
+          </div>
+          <div class="hint" id="thr-preview" style="margin-top: 12px"></div>
+          <div class="form-actions"><button class="btn btn-solid" type="submit">Simpan ambang</button></div>
+        </form>
+      </section>
+      <section class="card" style="margin-top: 16px">
+        <div class="card-head"><div><h2 class="card-title">Program lampu</h2><div class="stat-note">Durasi (detik) yang dikirim ke ESP32-C6. Kuning minimal 3 detik.</div></div></div>
+        <form id="f-program">
+          <div class="grid grid-2">
+            <fieldset><legend><span class="pill pill-lancar">LANCAR</span> Program normal</legend>
+              <div class="form-grid">
+                <label class="field"><span>Merah</span><input class="input" type="number" min="1" max="3600" name="baseline.red" data-type="int" /><small data-mmss="baseline.red"></small></label>
+                <label class="field"><span>Kuning</span><input class="input" type="number" min="3" max="600" name="baseline.yellow" data-type="int" /><small data-mmss="baseline.yellow"></small></label>
+                <label class="field"><span>Hijau</span><input class="input" type="number" min="1" max="3600" name="baseline.green" data-type="int" /><small data-mmss="baseline.green"></small></label>
+              </div>
+            </fieldset>
+            <fieldset><legend><span class="pill pill-padat">PADAT / MACET</span> Program padat</legend>
+              <div class="form-grid">
+                <label class="field"><span>Merah</span><input class="input" type="number" min="1" max="3600" name="congested.red" data-type="int" /><small data-mmss="congested.red"></small></label>
+                <label class="field"><span>Kuning</span><input class="input" type="number" min="3" max="600" name="congested.yellow" data-type="int" /><small data-mmss="congested.yellow"></small></label>
+                <label class="field"><span>Hijau</span><input class="input" type="number" min="1" max="3600" name="congested.green" data-type="int" /><small data-mmss="congested.green"></small></label>
+              </div>
+            </fieldset>
+          </div>
+          <div class="form-actions"><button class="btn btn-solid" type="submit">Simpan program</button><span class="stat-note">Lampu memakai program baru di awal siklus berikutnya setelah frame berikutnya diproses.</span></div>
+        </form>
+      </section>
+    </template>
+
+    <template id="tpl-kamera">
+      <section class="card">
+        <div class="fw-head">
+          <div class="fw-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></div>
+          <div><div style="font-weight: 800">ESP32-S3 · kamera OV3660</div><div class="stat-note">Topik: <span class="mono" data-topic="config"></span></div></div>
+          <span class="spacer"></span><div id="fw-cam-devs" class="row"></div>
+        </div>
+        <form id="f-camera">
+          <div class="form-grid">
+            <label class="field"><span>Resolusi (framesize)</span><select class="select" name="framesize" id="opt-framesize"></select><small>Tanpa PSRAM dibatasi maksimal QVGA</small></label>
+            <label class="field"><span>Interval kirim (detik)</span><input class="input" type="number" min="1" max="600" name="capture_interval_s" data-type="int" /><small>1–600</small></label>
+            <label class="field"><span>Kualitas JPEG</span><div class="range-wrap"><input type="range" min="4" max="63" name="jpeg_quality" data-type="int" /><output></output></div><small>4 = paling tajam · 63 = file terkecil</small></label>
+            <label class="field"><span>Kecerahan</span><div class="range-wrap"><input type="range" min="-2" max="2" name="brightness" data-type="int" /><output></output></div></label>
+            <label class="field"><span>Kontras</span><div class="range-wrap"><input type="range" min="-2" max="2" name="contrast" data-type="int" /><output></output></div><small>butuh firmware ≥ 2.1.0</small></label>
+            <label class="field"><span>Saturasi</span><div class="range-wrap"><input type="range" min="-2" max="2" name="saturation" data-type="int" /><output></output></div></label>
+            <label class="switch"><span>Balik vertikal (vflip)</span><input type="checkbox" name="vflip" /></label>
+            <label class="switch"><span>Cermin horizontal (hmirror)</span><input type="checkbox" name="hmirror" /></label>
+          </div>
+          <div class="hint" id="cam-estimate" style="margin-top: 12px"></div>
+          <div class="form-actions">
+            <button class="btn btn-solid" type="submit">Simpan &amp; kirim ke kamera</button>
+            <button class="btn" type="button" data-cmd="capture_now" data-target="camera">Ambil foto sekarang</button>
+            <span class="stat-note">Tidak bisa diubah dari web (perlu flash ulang): WiFi, alamat server, kredensial MQTT, pin kamera.</span>
+          </div>
+        </form>
+      </section>
+    </template>
+
+    <template id="tpl-lampu">
+      <section class="card">
+        <div class="fw-head">
+          <div class="fw-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="2" width="8" height="20" rx="3"/><circle cx="12" cy="7" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="17" r="1.6"/></svg></div>
+          <div><div style="font-weight: 800">ESP32-C6 · pengendali lampu</div><div class="stat-note">Topik: <span class="mono" data-topic="config"></span></div></div>
+          <span class="spacer"></span><div id="fw-light-devs" class="row"></div>
+        </div>
+        <form id="f-light">
+          <div class="form-grid">
+            <label class="field"><span>Interval polling HTTP (detik)</span><input class="input" type="number" min="5" max="300" name="poll_interval_s" data-type="int" /><small>5–300 · cadangan kalau MQTT mati</small></label>
+            <label class="field"><span>Mode saat server hilang</span><select class="select" name="offline_mode"><option value="fallback">Program fallback</option><option value="blink_yellow">Kuning berkedip</option><option value="all_red">Merah terus</option></select></label>
+            <label class="field"><span>Dianggap offline setelah (detik)</span><input class="input" type="number" min="10" max="3600" name="offline_after_s" data-type="int" /><small>10–3600</small></label>
+          </div>
+          <fieldset style="margin-top: 14px"><legend>Program fallback (detik)</legend>
+            <div class="form-grid">
+              <label class="field"><span>Merah</span><input class="input" type="number" min="1" max="3600" name="fallback_red" data-type="int" /><small data-mmss="fallback_red"></small></label>
+              <label class="field"><span>Kuning</span><input class="input" type="number" min="3" max="600" name="fallback_yellow" data-type="int" /><small data-mmss="fallback_yellow"></small></label>
+              <label class="field"><span>Hijau</span><input class="input" type="number" min="1" max="3600" name="fallback_green" data-type="int" /><small data-mmss="fallback_green"></small></label>
+            </div>
+          </fieldset>
+          <div class="form-actions">
+            <button class="btn btn-solid" type="submit">Simpan &amp; kirim ke lampu</button>
+            <span class="stat-note">Juga dipakai server sebagai program awal sebelum ada frame yang diproses.</span>
+          </div>
+        </form>
+      </section>
+    </template>
+
+    <template id="tpl-perangkat">
+      <section class="card">
+        <div class="card-head">
+          <div><h2 class="card-title">Perangkat di lokasi ini</h2><div class="stat-note">Status dari MQTT (retained + LWT) dan dari permintaan HTTP perangkat</div></div>
+          <div class="row">
+            <button class="btn btn-sm" type="button" data-cmd="resend_config" data-target="all">Kirim ulang konfigurasi</button>
+            <button class="btn btn-sm" type="button" data-cmd="capture_now" data-target="camera">Ambil foto</button>
+            <button class="btn btn-sm btn-danger" type="button" data-cmd="reboot" data-target="camera">Reboot kamera</button>
+            <button class="btn btn-sm btn-danger" type="button" data-cmd="reboot" data-target="light">Reboot lampu</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Perangkat</th><th>Peran</th><th>Status</th><th>Terakhir</th><th>RSSI</th><th>Baterai</th><th>Firmware</th><th>Konfigurasi</th></tr></thead>
+            <tbody id="dev-table"></tbody>
+          </table>
+        </div>
+      </section>
+      <section class="grid grid-2" style="margin-top: 16px">
+        <article class="card">
+          <h2 class="card-title" style="margin-bottom: 12px">Topik MQTT</h2>
+          <dl class="kv" id="topic-kv"></dl>
+        </article>
+        <article class="card">
+          <h2 class="card-title" style="margin-bottom: 12px">Sinkronisasi</h2>
+          <dl class="kv" id="sync-kv"></dl>
+        </article>
+      </section>
+    </template>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.15/dist/hls.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+    <script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
+    <script>
+    "use strict";
+    // =====================================================================
+    //  Konfigurasi
+    // =====================================================================
+    const QS = new URLSearchParams(window.location.search);
+    const DEMO = QS.has("demo");
+    const API_BASE = (QS.get("api") || window.FLOWINCHECK_API ||
+      (window.location.protocol === "file:" ? "http://localhost:8000" : "")).replace(/\/+$/, "");
+    const DEFAULT_CENTER = [-7.9797, 112.6304];     // Malang
+    const CLASS_LABEL = { car: "Mobil", motorcycle: "Motor", bus: "Bus", truck: "Truk" };
+    const TAB_TITLE = { dashboard: "Dashboard", pantauan: "Pantauan", riwayat: "Riwayat", admin: "Admin" };
+    const SUB_TITLE = { lokasi: "Lokasi", roi: "Editor ROI", lalin: "Ambang & program", kamera: "Firmware kamera", lampu: "Firmware lampu", perangkat: "Perangkat" };
+
+    const S = {
+      pub: null, locations: [], bySlug: {}, byName: {}, sel: localStorage.getItem("fic.sel") || "",
+      recent: [], hist: [], hourly: null, range: "today", devices: [],
+      token: sessionStorage.getItem("fic.token") || localStorage.getItem("fic.token") || "",
+      settings: null, admLoc: "", sub: window.location.hash.split("/")[1] || localStorage.getItem("fic.sub") || "lokasi",
+      tab: null, mqttOk: false, lastUpdate: null,
+    };
+
+    // =====================================================================
+    //  Util
+    // =====================================================================
+    const $ = (sel, root = document) => root.querySelector(sel);
+    const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
+    const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+    const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    const key = (v) => String(v || "").toLowerCase();
+    const enc = encodeURIComponent;
+    const mmss = (s) => { s = Math.max(0, Math.round(+s || 0)); return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`; };
+    const fmtNum = (n, d = 6) => (n === null || n === undefined || n === "" ? "" : (+n).toFixed(d));
+    const toDate = (v) => (v == null ? null : typeof v === "number" ? new Date(v < 1e12 ? v * 1000 : v) : new Date(v));
+    function ago(date) {
+      if (!date) return "–";
+      const s = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
+      if (s < 60) return `${s} detik lalu`;
+      if (s < 3600) return `${Math.floor(s / 60)} menit lalu`;
+      if (s < 86400) return `${Math.floor(s / 3600)} jam lalu`;
+      return `${Math.floor(s / 86400)} hari lalu`;
+    }
+    const fmtTime = (d) => (d ? new Intl.DateTimeFormat("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" }).format(d) : "–");
+    const fmtDate = (d) => (d ? new Intl.DateTimeFormat("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" }).format(d) : "–");
+    const fmtDT = (d) => (d ? d.toLocaleString("id-ID") : "–");
+    const pill = (status) => `<span class="pill pill-${key(status)}">${esc(status || "–")}</span>`;
+    const statusColor = (st) => ({ lancar: getCss("--lancar"), padat: getCss("--padat"), macet: getCss("--macet") }[key(st)] || "#6b7280");
+    function getCss(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+
+    function toast(msg, type = "ok", ms = 4200) {
+      const el = document.createElement("div");
+      el.className = `toast ${type}`;
+      el.textContent = msg;
+      $("#toasts").appendChild(el);
+      setTimeout(() => { el.style.opacity = "0"; el.style.transition = ".3s"; setTimeout(() => el.remove(), 300); }, ms);
+    }
+
+    function setConn(which, ok, title) {
+      const el = $(`#conn-${which}`);
+      el.classList.toggle("ok", ok === true);
+      el.classList.toggle("bad", ok === false);
+      if (title) el.title = title;
+    }
+
+    // =====================================================================
+    //  Loader (tiap ganti tab)
+    // =====================================================================
+    const Loader = {
+      count: 0, timer: null,
+      show(text) {
+        this.count++;
+        $("#tab-loader-text").textContent = text || "Memuat…";
+        $("#tab-loader").classList.add("on");
+        const bar = $("#topbar");
+        bar.classList.add("on"); bar.style.width = "15%";
+        clearInterval(this.timer);
+        let w = 15;
+        this.timer = setInterval(() => { w = Math.min(90, w + (90 - w) * 0.12); bar.style.width = w + "%"; }, 120);
+      },
+      hide() {
+        this.count = Math.max(0, this.count - 1);
+        if (this.count) return;
+        clearInterval(this.timer);
+        const bar = $("#topbar");
+        bar.style.width = "100%";
+        setTimeout(() => { bar.classList.remove("on"); setTimeout(() => (bar.style.width = "0"), 300); }, 200);
+        $("#tab-loader").classList.remove("on");
+      },
+    };
+    async function withLoader(text, fn, minMs = 400) {
+      Loader.show(text);
+      try { const [r] = await Promise.all([fn(), wait(minMs)]); return r; }
+      catch (e) { toast(e.message || String(e), "err"); }
+      finally { Loader.hide(); }
+    }
+
+    // =====================================================================
+    //  API
+    // =====================================================================
+    async function api(path, { method = "GET", body, auth = false, raw = false, timeout = 20000 } = {}) {
+      if (DEMO) return Demo.api(path, method, body, raw);
+      const headers = {};
+      if (body !== undefined) headers["Content-Type"] = "application/json";
+      if (auth && S.token) headers.Authorization = "Bearer " + S.token;
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), timeout);
+      let res;
+      try {
+        res = await fetch(API_BASE + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal: ctrl.signal, cache: "no-store" });
+      } catch (e) {
+        setConn("api", false, "API tidak terjangkau: " + (API_BASE || window.location.origin));
+        throw new Error("Server tidak terjangkau");
+      } finally { clearTimeout(t); }
+      setConn("api", true, "API: " + (API_BASE || window.location.origin));
+      if (raw) {
+        if (!res.ok) { let d; try { d = (await res.json()).detail; } catch {} throw new Error(d || `HTTP ${res.status}`); }
+        return res;
+      }
+      let data = null;
+      try { data = await res.json(); } catch {}
+      if (!res.ok) {
+        let msg = data && data.detail;
+        if (Array.isArray(msg)) msg = msg.map((m) => m.msg).join(", ");
+        const err = new Error(msg || `HTTP ${res.status}`);
+        err.status = res.status;
+        if (auth && res.status === 401) { logout(true); }
+        throw err;
+      }
+      return data;
+    }
+
+    const frameUrls = {};
+    async function fetchFrame(loc, slot) {
+      if (DEMO) return Demo.frame(loc);
+      const res = await api(`/api/frame?location=${enc(loc)}&t=${Date.now()}`, { raw: true, timeout: 30000 });
+      const url = URL.createObjectURL(await res.blob());
+      if (frameUrls[slot]) URL.revokeObjectURL(frameUrls[slot]);
+      frameUrls[slot] = url;
+      return url;
+    }
+
+    // =====================================================================
+    //  Data bersama
+    // =====================================================================
+    async function refreshLocations() {
+      const data = await api("/api/locations");
+      const old = S.byName;
+      S.locations = (data.locations || []).map((l) => {
+        const prev = old[l.location];
+        // data MQTT yang lebih baru dari API tetap dipakai
+        if (prev && prev.updated_at && (!l.updated_at || prev.updated_at > l.updated_at)) {
+          for (const k of ["traffic_status", "vehicle_count", "all_lanes_total", "counts_by_class", "red_seconds", "yellow_seconds", "green_seconds", "updated_at"]) l[k] = prev[k];
+        }
+        return l;
+      });
+      S.byName = Object.fromEntries(S.locations.map((l) => [l.location, l]));
+      S.bySlug = Object.fromEntries(S.locations.map((l) => [l.slug, l]));
+      if (S.sel && !S.byName[S.sel]) setSel("", false);
+      renderLocSelect();
+      return S.locations;
+    }
+
+    function renderLocSelect() {
+      const sel = $("#loc-select");
+      sel.innerHTML = `<option value="">Semua lokasi</option>` + S.locations.map((l) => `<option value="${esc(l.location)}">${esc(l.label || l.location)}</option>`).join("");
+      sel.value = S.sel;
+    }
+
+    function setSel(loc, reload = true) {
+      S.sel = loc || "";
+      localStorage.setItem("fic.sel", S.sel);
+      $("#loc-select").value = S.sel;
+      if (S.sel && S.tab === "admin" && S.token && S.admLoc !== S.sel) { S.admLoc = S.sel; }
+      if (reload && S.tab) showTab(S.tab, { reason: "lokasi" });
+    }
+
+    async function refreshDevices() {
+      const d = await api("/api/devices");
+      S.devices = (d.devices || []).map((x) => ({ ...x, _seen: x._seen || Date.now() - (x.seconds_since_seen || 0) * 1000 }));
+      return S.devices;
+    }
+
+    // =====================================================================
+    //  Tab + loading page
+    // =====================================================================
+    const Views = {};
+    let tabSeq = 0;
+    async function showTab(name, { reason } = {}) {
+      if (!Views[name]) name = "dashboard";
+      const seq = ++tabSeq;
+      const changed = S.tab !== name;
+      if (S.tab && Views[S.tab].leave && changed) Views[S.tab].leave();
+      S.tab = name;
+      $$(".view").forEach((v) => (v.hidden = v.dataset.view !== name));
+      $$("#nav a").forEach((a) => a.classList.toggle("active", a.dataset.tab === name));
+      if (changed) window.scrollTo({ top: 0 });
+      document.title = `${TAB_TITLE[name]} — Flowincheck`;
+      await withLoader(reason === "lokasi" ? "Memuat data lokasi…" : `Memuat ${TAB_TITLE[name]}…`, () => Views[name].load(), changed ? 450 : 250);
+      if (seq === tabSeq && Views[name].shown) Views[name].shown();
+    }
+    window.addEventListener("hashchange", () => showTab(window.location.hash.slice(1).split("/")[0]));
+
+    // =====================================================================
+    //  MQTT over WebSocket (live, hanya subscribe)
+    // =====================================================================
+    let mqttClient = null;
+    function startMqtt() {
+      const m = S.pub && S.pub.mqtt;
+      if (DEMO) { setConn("mqtt", true, "MQTT (simulasi)"); S.mqttOk = true; Demo.startLive(onStatus, onDeviceState); return; }
+      if (!m || !m.enabled || !window.mqtt) { setConn("mqtt", null, "MQTT live tidak diatur (mqtt.ws_url kosong) — data via polling API"); return; }
+      const p = m.prefix || "greenflow";
+      mqttClient = window.mqtt.connect(m.ws_url, {
+        username: m.username || undefined, password: m.password || undefined,
+        clientId: "fic-web-" + Math.random().toString(16).slice(2, 10), reconnectPeriod: 5000, connectTimeout: 10000, clean: true,
+      });
+      mqttClient.on("connect", () => {
+        S.mqttOk = true; setConn("mqtt", true, "MQTT live: " + m.ws_url);
+        mqttClient.subscribe([`${p}/+/status`, `${p}/+/device/+/state`], { qos: 0 });
+      });
+      const down = () => { S.mqttOk = false; setConn("mqtt", false, "MQTT terputus, mencoba lagi… (data via polling API)"); };
+      mqttClient.on("close", down); mqttClient.on("offline", down); mqttClient.on("error", down);
+      mqttClient.on("message", (topic, payload) => {
+        if (!topic.startsWith(p + "/")) return;
+        const parts = topic.slice(p.length + 1).split("/");
+        let data; try { data = JSON.parse(new TextDecoder().decode(payload) || "{}"); } catch { return; }
+        if (parts.length === 2 && parts[1] === "status") onStatus(parts[0], data);
+        else if (parts.length === 4 && parts[1] === "device" && parts[3] === "state") onDeviceState(parts[0], parts[2], data);
+      });
+    }
+
+    function onStatus(slug, d) {
+      const loc = S.bySlug[slug];
+      if (!loc) return;
+      Object.assign(loc, {
+        traffic_status: d.traffic_status ?? loc.traffic_status,
+        vehicle_count: d.vehicle_count ?? loc.vehicle_count,
+        all_lanes_total: d.all_lanes_total ?? loc.all_lanes_total,
+        counts_by_class: d.counts_by_class ?? loc.counts_by_class,
+        red_seconds: d.red_seconds ?? loc.red_seconds,
+        yellow_seconds: d.yellow_seconds ?? loc.yellow_seconds,
+        green_seconds: d.green_seconds ?? loc.green_seconds,
+        updated_at: d.ts || Date.now() / 1000,
+      });
+      // tambahkan ke tabel "data terbaru" tanpa menunggu polling
+      if (!S.sel || S.sel === loc.location) {
+        const created = new Date((d.ts || Date.now() / 1000) * 1000).toISOString();
+        if (!S.recent.some((r) => r.location === loc.location && Math.abs(new Date(r.created_at) - new Date(created)) < 1500)) {
+          S.recent.unshift({ _live: true, created_at: created, location: loc.location, device_id: d.device_id, vehicle_count: d.vehicle_count, traffic_status: d.traffic_status, green_duration: d.green_seconds, counts_by_class: { ...(d.counts_by_class || {}), _all_lanes_total: d.all_lanes_total } });
+          S.recent = S.recent.slice(0, 8);
+        }
+      }
+      scheduleRender();
+    }
+
+    function onDeviceState(slug, deviceId, d) {
+      const loc = S.bySlug[slug];
+      let dev = S.devices.find((x) => x.device_id === deviceId);
+      if (!dev) { dev = { device_id: deviceId, location: loc ? loc.location : slug }; S.devices.push(dev); }
+      Object.assign(dev, d, { online: d.online !== false, seconds_since_seen: 0, _seen: Date.now() });
+      scheduleRender();
+    }
+
+    let renderQueued = false;
+    function scheduleRender() {
+      if (renderQueued) return;
+      renderQueued = true;
+      requestAnimationFrame(() => { renderQueued = false; if (Views[S.tab] && Views[S.tab].live) Views[S.tab].live(); });
+    }
+
+    // polling cadangan (lebih jarang kalau MQTT tersambung)
+    let polling = false;
+    async function pollLoop() {
+      while (true) {
+        await wait(S.mqttOk ? 20000 : 7000);
+        if (polling || document.hidden || Loader.count) continue;
+        polling = true;
+        try { if (Views[S.tab] && Views[S.tab].poll) await Views[S.tab].poll(); }
+        catch (e) { /* status koneksi sudah ditampilkan di header */ }
+        finally { polling = false; }
+      }
+    }
+    // =====================================================================
+    //  Gambar ROI di atas frame (dipakai Pantauan & editor Admin)
+    // =====================================================================
+    function sizeCanvas(canvas) {
+      const r = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      const w = Math.max(1, Math.round(r.width * dpr)), h = Math.max(1, Math.round(r.height * dpr));
+      if (canvas.width !== w || canvas.height !== h) { canvas.width = w; canvas.height = h; }
+      return { w, h, dpr };
+    }
+    function drawRoi(canvas, pts, { editable = false, sel = -1, hover = -1, label = "", color = "#22c55e" } = {}) {
+      const { w, h, dpr } = sizeCanvas(canvas);
+      const ctx = canvas.getContext("2d");
+      ctx.clearRect(0, 0, w, h);
+      if (!pts || !pts.length) return;
+      const P = pts.map(([x, y]) => [x * w, y * h]);
+      ctx.save();
+      ctx.lineJoin = "round";
+      if (P.length >= 3) {
+        // gelapkan area di luar ROI supaya jalur yang dihitung jelas
+        ctx.fillStyle = "rgba(0,0,0,.35)";
+        ctx.beginPath(); ctx.rect(0, 0, w, h);
+        P.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.closePath();
+        ctx.fill("evenodd");
+        ctx.beginPath(); P.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.closePath();
+        ctx.fillStyle = "rgba(34,197,94,.16)"; ctx.fill();
+      } else {
+        ctx.beginPath(); P.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+      }
+      ctx.strokeStyle = color; ctx.lineWidth = 2.5 * dpr;
+      ctx.setLineDash(P.length >= 3 ? [] : [6 * dpr, 5 * dpr]);
+      ctx.stroke(); ctx.setLineDash([]);
+      if (editable) {
+        P.forEach(([x, y], i) => {
+          const r = (i === sel ? 8 : i === hover ? 7.5 : 6) * dpr;
+          ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
+          ctx.fillStyle = i === sel ? "#facc15" : i === 0 ? "#22c55e" : "#ffffff"; ctx.fill();
+          ctx.lineWidth = 2 * dpr; ctx.strokeStyle = "#0b3b20"; ctx.stroke();
+          ctx.fillStyle = "#fff"; ctx.font = `700 ${10.5 * dpr}px Inter, sans-serif`;
+          ctx.fillText(String(i + 1), x + 9 * dpr, y - 8 * dpr);
+        });
+      }
+      if (label && P.length) {
+        ctx.font = `700 ${12 * dpr}px Inter, sans-serif`;
+        const top = P.reduce((a, b) => (b[1] < a[1] ? b : a));
+        const tw = ctx.measureText(label).width + 14 * dpr;
+        const lx = Math.min(Math.max(0, top[0] - tw / 2), w - tw), ly = Math.max(0, top[1] - 30 * dpr);
+        ctx.fillStyle = "rgba(11,59,32,.85)"; ctx.fillRect(lx, ly, tw, 22 * dpr);
+        ctx.fillStyle = "#fff"; ctx.fillText(label, lx + 7 * dpr, ly + 15 * dpr);
+      }
+      ctx.restore();
+    }
+
+    // =====================================================================
+    //  DASHBOARD
+    // =====================================================================
+    let hourlyChart = null, hourlyAt = 0;
+    const curLoc = () => (S.sel ? S.byName[S.sel] : null);
+    const ORDER = { lancar: 1, padat: 2, macet: 3 };
+    function sumOf(field) {
+      const v = S.locations.map((l) => l[field]).filter((x) => x !== null && x !== undefined);
+      return v.length ? v.reduce((a, b) => a + (+b || 0), 0) : null;
+    }
+    function programFor(l, status) {
+      if (l && l.red_seconds != null) return { red: l.red_seconds, yellow: l.yellow_seconds, green: l.green_seconds, live: true };
+      const p = (l && l.program) || { baseline: { red: 300, yellow: 30, green: 60 }, congested: { red: 120, yellow: 60, green: 180 } };
+      const busy = key(status) === "padat" || key(status) === "macet";
+      return { ...(busy ? p.congested : p.baseline), live: false };
+    }
+
+    async function loadRecent() {
+      try {
+        const d = await api(`/api/logs?limit=8${S.sel ? "&location=" + enc(S.sel) : ""}`);
+        S.recent = d.rows || []; S.recentErr = null;
+      } catch (e) { S.recentErr = e.message; }
+    }
+    async function loadHourly() {
+      try {
+        S.hourly = await api(`/api/hourly?range=${S.range}${S.sel ? "&location=" + enc(S.sel) : ""}`);
+        S.hourlyErr = null;
+      } catch (e) { S.hourlyErr = e.message; }
+      hourlyAt = Date.now();
+      renderChart();
+    }
+
+    Views.dashboard = {
+      async load() { await refreshLocations(); await Promise.all([loadRecent(), loadHourly()]); renderDashboard(); },
+      async poll() { await refreshLocations(); await loadRecent(); if (Date.now() - hourlyAt > 60000) await loadHourly(); renderDashboard(); },
+      live() { renderDashboard(); },
+    };
+
+    function renderDashboard() {
+      const loc = curLoc();
+      const row = S.recent[0] || null;
+      const freshest = [...S.locations].filter((l) => l.updated_at).sort((a, b) => b.updated_at - a.updated_at)[0] || null;
+      const src = loc || freshest || (row && S.byName[row.location]) || null;
+
+      let status, count, all, counts, updated;
+      if (loc) {
+        status = loc.traffic_status || (row && row.traffic_status);
+        count = loc.vehicle_count ?? (row && row.vehicle_count);
+        all = loc.all_lanes_total ?? (row && row.counts_by_class && row.counts_by_class._all_lanes_total);
+        counts = loc.counts_by_class || (row && row.counts_by_class);
+        updated = loc.updated_at ? toDate(loc.updated_at) : row ? toDate(row.created_at) : null;
+      } else {
+        const st = S.locations.map((l) => key(l.traffic_status)).filter((s) => ORDER[s]);
+        status = st.length ? st.sort((a, b) => ORDER[b] - ORDER[a])[0].toUpperCase() : row && row.traffic_status;
+        count = sumOf("vehicle_count") ?? (row && row.vehicle_count);
+        all = sumOf("all_lanes_total");
+        counts = {};
+        S.locations.forEach((l) => Object.entries(l.counts_by_class || {}).forEach(([k, v]) => { if (CLASS_LABEL[k]) counts[k] = (counts[k] || 0) + (+v || 0); }));
+        if (!Object.keys(counts).length && row) counts = row.counts_by_class;
+        updated = freshest ? toDate(freshest.updated_at) : row ? toDate(row.created_at) : null;
+      }
+      S.lastUpdate = updated;
+      const k = key(status);
+
+      $("#dash-sub").textContent = loc ? `${loc.label || loc.location} · mode ${loc.mode === "cctv" ? "CCTV online" : "kamera ESP32-S3"}${loc.has_roi ? " · ROI: " + (loc.roi_label || "aktif") : " · tanpa ROI"}` : `Semua lokasi (${S.locations.length}) · terbuka untuk umum, tanpa login`;
+      const tv = $("#stat-traffic");
+      tv.textContent = status || "–"; tv.className = `stat-value ${k ? "text-" + k : ""}`;
+      $("#icon-traffic").className = `stat-icon ${k ? "text-" + k : ""}`;
+      $("#stat-vehicle").textContent = count ?? "–";
+      $("#stat-lane").textContent = loc ? (loc.has_roi ? `Jalur: ${loc.roi_label || "ROI aktif"}` : "ROI belum diatur, seluruh frame dihitung") : "Total semua lokasi";
+      $("#stat-all").textContent = all ?? "–";
+      $("#stat-time").textContent = updated ? fmtTime(updated) : "–";
+      $("#stat-date").textContent = updated ? fmtDate(updated) : "–";
+      tickElapsed();
+
+      // program lampu
+      const prog = programFor(src, status);
+      const busy = k === "padat" || k === "macet";
+      $("#stat-mode").textContent = status ? (busy ? "Program padat" : "Program normal") : "–";
+      const note = $("#mode-note");
+      note.textContent = !status ? "Menunggu data" : busy ? "Hijau diperpanjang" : "Durasi baku";
+      note.className = `pill ${!status ? "pill-info" : busy ? "pill-padat" : "pill-lancar"}`;
+      $("#stat-red").innerHTML = `${prog.red}<small>dtk · ${mmss(prog.red)}</small>`;
+      $("#stat-yellow").innerHTML = `${prog.yellow}<small>dtk · ${mmss(prog.yellow)}</small>`;
+      $("#stat-green").innerHTML = `${prog.green}<small>dtk · ${mmss(prog.green)}</small>`;
+      const total = prog.red + prog.yellow + prog.green;
+      const bars = $$("#cycle span");
+      [prog.red, prog.green, prog.yellow].forEach((v, i) => (bars[i].style.width = `${(v / total) * 100}%`));
+      $("#cycle-caption").textContent = `Siklus ${mmss(total)} (merah → hijau → kuning)` + (src ? ` · ${src.label || src.location}` : "") + (prog.live ? "" : " · nilai dari pengaturan, belum ada frame");
+      $$(".signal .lamp").forEach((l) => l.classList.remove("on"));
+      if (k) $(`.signal .lamp.${k === "macet" ? "merah" : k === "padat" ? "kuning" : "hijau"}`).classList.add("on");
+
+      // jenis kendaraan
+      const entries = Object.keys(CLASS_LABEL).map((c) => [c, +((counts || {})[c] || 0)]);
+      const max = Math.max(1, ...entries.map((e) => e[1]));
+      $("#class-bars").innerHTML = entries.map(([c, v]) => `<div class="bar-row"><span>${CLASS_LABEL[c]}</span><div class="bar-track"><div class="bar-fill" style="width:${(v / max) * 100}%"></div></div><b style="text-align:right">${v}</b></div>`).join("") +
+        `<div class="stat-note">${counts && Object.keys(counts).length ? "Dari deteksi YOLOv8 terakhir" : "Belum ada data deteksi"}</div>`;
+
+      // daftar lokasi
+      $("#dash-locs").innerHTML = S.locations.length ? S.locations.map((l) => `
+        <button class="loc-item ${l.location === S.sel ? "sel" : ""}" data-pick="${esc(l.location)}" type="button">
+          <div class="t"><span>${esc(l.label || l.location)}</span>${pill(l.traffic_status || "–")}</div>
+          <div class="m"><span>${l.vehicle_count ?? "–"} kendaraan</span><span>${l.updated_at ? ago(toDate(l.updated_at)) : "belum ada data"}</span>${l.lat == null ? '<span class="warn">tanpa koordinat</span>' : ""}</div>
+        </button>`).join("") : `<div class="stat-note">Belum ada lokasi di config.yaml</div>`;
+      $$("#dash-locs [data-pick]").forEach((b) => b.addEventListener("click", () => setSel(b.dataset.pick === S.sel ? "" : b.dataset.pick)));
+
+      // tabel
+      $("#dash-table").innerHTML = S.recentErr ? `<tr><td colspan="6" class="empty">Gagal ambil riwayat: ${esc(S.recentErr)}</td></tr>`
+        : S.recent.length ? S.recent.map((r) => `<tr class="${r._live ? "flash" : ""}"><td>${fmtDT(toDate(r.created_at))}</td><td>${esc((S.byName[r.location] || {}).label || r.location)}</td><td><b>${esc(r.vehicle_count)}</b></td><td>${esc((r.counts_by_class || {})._all_lanes_total ?? "–")}</td><td>${r.green_duration != null ? esc(r.green_duration) + " dtk" : "–"}</td><td>${pill(r.traffic_status)}</td></tr>`).join("")
+        : `<tr><td colspan="6" class="empty">Belum ada data</td></tr>`;
+      S.recent.forEach((r) => delete r._live);
+      $("#status-line").textContent = S.recentErr ? "Sebagian data gagal dimuat" : `Terhubung${S.mqttOk ? " · live MQTT" : " · polling API"} · ${fmtTime(new Date())}`;
+      $("#status-line").className = `pill ${S.recentErr ? "pill-padat" : "pill-lancar"}`;
+    }
+
+    function tickElapsed() {
+      $("#stat-elapsed").textContent = S.lastUpdate ? `Diperbarui ${ago(S.lastUpdate)}` : "Belum ada data masuk";
+    }
+    setInterval(tickElapsed, 1000);
+
+    function renderChart() {
+      const h = S.hourly;
+      const cap = $("#chart-caption");
+      if (S.hourlyErr) { cap.textContent = "Gagal ambil data grafik: " + S.hourlyErr; }
+      if (!h || !window.Chart) return;
+      const label = { today: "hari ini", yesterday: "kemarin", "7days": "7 hari terakhir" }[h.range] || "";
+      if (!S.hourlyErr) cap.textContent = h.peak_hour != null
+        ? `Jam tersibuk ${label}: ${String(h.peak_hour).padStart(2, "0")}.00 (rata-rata ${h.peak_value} kendaraan) · ${h.samples} sampel`
+        : `Belum ada data untuk ${label}.`;
+      const brand = getCss("--brand"), soft = getCss("--brand-soft"), muted = getCss("--muted"), line = getCss("--line");
+      const colors = h.values.map((_, i) => (i === h.peak_hour ? brand : soft));
+      if (hourlyChart && hourlyChart._theme !== document.documentElement.dataset.theme) { hourlyChart.destroy(); hourlyChart = null; }
+      if (!hourlyChart) {
+        hourlyChart = new Chart($("#hourly-chart"), {
+          type: "bar",
+          data: { labels: h.labels, datasets: [{ label: "Rata-rata kendaraan", data: h.values, backgroundColor: colors, hoverBackgroundColor: brand, borderRadius: 6, borderSkipped: false }] },
+          options: {
+            responsive: true, maintainAspectRatio: false, animation: { duration: 400 },
+            plugins: { legend: { display: false }, tooltip: { callbacks: { title: (it) => `Jam ${it[0].label}.00`, label: (it) => ` ${it.raw} kendaraan (rata-rata)` } } },
+            scales: {
+              x: { grid: { display: false }, border: { display: false }, ticks: { color: muted, maxRotation: 0, autoSkip: true } },
+              y: { beginAtZero: true, border: { display: false }, grid: { color: line }, ticks: { color: muted, precision: 0 } },
+            },
+          },
+        });
+        hourlyChart._theme = document.documentElement.dataset.theme;
+      } else {
+        hourlyChart.data.labels = h.labels;
+        hourlyChart.data.datasets[0].data = h.values;
+        hourlyChart.data.datasets[0].backgroundColor = colors;
+        hourlyChart.update();
+      }
+    }
+    $("#chart-range").addEventListener("click", (e) => {
+      const b = e.target.closest("[data-range]");
+      if (!b) return;
+      S.range = b.dataset.range;
+      $$("#chart-range button").forEach((x) => x.classList.toggle("active", x === b));
+      withLoader("Memuat grafik…", loadHourly, 250);
+    });
+
+    // =====================================================================
+    //  PANTAUAN (peta + kamera)
+    // =====================================================================
+    const Mon = { loc: "", map: null, markers: {}, fitted: false, timer: null, hls: null, live: false };
+
+    Views.pantauan = {
+      async load() {
+        await refreshLocations();
+        ensureMonMap();
+        if (S.sel) Mon.loc = S.sel;
+        if (!S.byName[Mon.loc]) Mon.loc = (S.locations.find((l) => l.lat != null) || S.locations[0] || {}).location || "";
+        renderMonitor();
+        await loadMonFrame(true);
+      },
+      shown() {
+        if (Mon.map) { Mon.map.invalidateSize(); if (!Mon.fitted) { fitMon(); Mon.fitted = true; } }
+        startMonAuto();
+      },
+      leave() { stopMonAuto(); stopLive(); },
+      async poll() { await refreshLocations(); renderMonitor(); },
+      live() { renderMonitor(); },
+    };
+
+    function ensureMonMap() {
+      if (Mon.map) return;
+      if (!window.L) { $("#mon-map").innerHTML = '<div class="ph" style="padding:30px">Peta gagal dimuat (Leaflet CDN tidak terjangkau)</div>'; return; }
+      Mon.map = L.map("mon-map", { zoomControl: true }).setView(DEFAULT_CENTER, 13);
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(Mon.map);
+      L.control.scale({ imperial: false }).addTo(Mon.map);
+      const Coord = L.Control.extend({ onAdd() { const d = L.DomUtil.create("div", "coord-box"); d.textContent = "Arahkan kursor ke peta"; return d; } });
+      const coordCtl = new Coord({ position: "bottomleft" }).addTo(Mon.map);
+      Mon.map.on("mousemove", (e) => (coordCtl.getContainer().textContent = `${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}`));
+      Mon.map.on("click", (e) => {
+        const txt = `${e.latlng.lat.toFixed(6)}, ${e.latlng.lng.toFixed(6)}`;
+        L.popup().setLatLng(e.latlng).setContent(`<b>Titik koordinat</b><br><span class="mono">${txt}</span><br><button class="btn btn-sm" style="margin-top:8px" data-copy="${txt}">Salin</button>`).openOn(Mon.map);
+      });
+      Mon.map.on("popupopen", (e) => {
+        const el = e.popup.getElement();
+        const c = el.querySelector("[data-copy]");
+        if (c) c.addEventListener("click", () => copyText(c.dataset.copy));
+        const p = el.querySelector("[data-mon-pick]");
+        if (p) p.addEventListener("click", () => selectMon(p.dataset.monPick));
+      });
+      $("#mon-fit").addEventListener("click", fitMon);
+    }
+
+    function fitMon() {
+      if (!Mon.map) return;
+      const pts = S.locations.filter((l) => l.lat != null && l.lng != null).map((l) => [l.lat, l.lng]);
+      if (pts.length === 1) Mon.map.setView(pts[0], 16);
+      else if (pts.length) Mon.map.fitBounds(pts, { padding: [50, 50], maxZoom: 16 });
+    }
+
+    function pinIcon(l) {
+      return L.divIcon({
+        className: "", iconSize: [38, 38], iconAnchor: [19, 40], popupAnchor: [0, -38],
+        html: `<div class="pin ${key(l.traffic_status)} ${l.location === Mon.loc ? "sel" : ""}"><span>${l.vehicle_count ?? "–"}</span></div>`,
+      });
+    }
+    function popupHtml(l) {
+      const p = programFor(l, l.traffic_status);
+      return `<div style="min-width:210px"><div style="font-weight:800;margin-bottom:4px">${esc(l.label || l.location)}</div>
+        <div style="margin-bottom:6px">${pill(l.traffic_status || "Belum ada data")}</div>
+        <div>Kendaraan jalur ROI: <b>${l.vehicle_count ?? "–"}</b>${l.all_lanes_total != null ? ` · semua: ${l.all_lanes_total}` : ""}</div>
+        <div>Program: <b>M ${p.red} · K ${p.yellow} · H ${p.green}</b> dtk</div>
+        <div class="muted small">${l.updated_at ? ago(toDate(l.updated_at)) : "belum ada data"} · <span class="mono">${fmtNum(l.lat)}, ${fmtNum(l.lng)}</span></div>
+        <button class="btn btn-sm btn-solid" style="margin-top:8px" data-mon-pick="${esc(l.location)}">Lihat kamera</button></div>`;
+    }
+
+    function renderMonitor() {
+      if (Mon.map && window.L) {
+        const seen = new Set();
+        S.locations.forEach((l) => {
+          if (l.lat == null || l.lng == null) return;
+          seen.add(l.location);
+          let m = Mon.markers[l.location];
+          if (!m) {
+            m = L.marker([l.lat, l.lng], { icon: pinIcon(l), riseOnHover: true }).addTo(Mon.map);
+            m.on("click", () => selectMon(m._loc, false));
+            Mon.markers[l.location] = m;
+          } else { m.setLatLng([l.lat, l.lng]); m.setIcon(pinIcon(l)); }
+          m._loc = l.location;
+          m.bindPopup(popupHtml(l));
+          m.bindTooltip(esc(l.label || l.location), { direction: "top", offset: [0, -38] });
+          m.setZIndexOffset(l.location === Mon.loc ? 1000 : 0);
+        });
+        Object.keys(Mon.markers).forEach((k) => { if (!seen.has(k)) { Mon.markers[k].remove(); delete Mon.markers[k]; } });
+      }
+      $("#mon-list").innerHTML = S.locations.length ? S.locations.map((l) => `
+        <button type="button" class="loc-item ${l.location === Mon.loc ? "sel" : ""}" data-pick="${esc(l.location)}">
+          <div class="t"><span>${esc(l.label || l.location)}</span>${pill(l.traffic_status || "–")}</div>
+          <div class="m"><span>${l.mode === "cctv" ? "CCTV" : "ESP32-S3"}</span><span>${l.vehicle_count ?? "–"} kendaraan</span><span>${l.has_roi ? "ROI ✓" : "tanpa ROI"}</span></div>
+          <div class="m">${l.lat != null ? `<span class="mono">📍 ${fmtNum(l.lat)}, ${fmtNum(l.lng)}</span>` : `<span class="warn">Belum ada titik koordinat${S.token ? " — atur di Admin" : ""}</span>`}</div>
+        </button>`).join("") : `<div class="stat-note">Belum ada lokasi</div>`;
+      $$("#mon-list [data-pick]").forEach((b) => b.addEventListener("click", () => selectMon(b.dataset.pick)));
+      renderMonDetail();
+    }
+
+    function renderMonDetail() {
+      const l = S.byName[Mon.loc];
+      $("#mon-title").textContent = l ? `Kamera · ${l.label || l.location}` : "Kamera";
+      $("#mon-meta").textContent = l ? `${l.mode === "cctv" ? "CCTV online (" + (l.stream_type || "snapshot") + ")" : "Kamera ESP32-S3"} · ${l.updated_at ? "diperbarui " + ago(toDate(l.updated_at)) : "belum ada data"}` : "Pilih titik di peta atau di daftar";
+      $("#mon-live").hidden = !(l && l.stream_url && (l.stream_type === "hls" || l.stream_type === "mjpeg"));
+      $("#mon-live").textContent = Mon.live ? "Hentikan live" : "Live CCTV";
+      if (!l) { $("#mon-kv").innerHTML = ""; return; }
+      const p = programFor(l, l.traffic_status);
+      const gmaps = l.lat != null ? `<a href="https://www.google.com/maps?q=${l.lat},${l.lng}" target="_blank" rel="noopener">${fmtNum(l.lat)}, ${fmtNum(l.lng)}</a>` : '<span class="warn">belum diatur</span>';
+      $("#mon-kv").innerHTML = `
+        <dt>Status</dt><dd>${pill(l.traffic_status || "–")}</dd>
+        <dt>Jalur ROI</dt><dd>${l.vehicle_count ?? "–"} kendaraan</dd>
+        <dt>Semua jalur</dt><dd>${l.all_lanes_total ?? "–"} kendaraan</dd>
+        <dt>Program</dt><dd>Merah ${p.red} · Kuning ${p.yellow} · Hijau ${p.green} dtk</dd>
+        <dt>ROI</dt><dd>${l.has_roi ? esc(l.roi_label || "aktif") + ` (${l.roi.length} titik)` : "tidak aktif (seluruh frame)"}</dd>
+        <dt>Koordinat</dt><dd>${gmaps}</dd>
+        <dt>Perangkat</dt><dd class="mono">${esc(l.device_id || "–")}</dd>
+        <dt>Slug MQTT</dt><dd class="mono">${esc(l.slug)}</dd>`;
+      drawMonRoi();
+    }
+
+    function drawMonRoi() {
+      const l = S.byName[Mon.loc];
+      drawRoi($("#mon-canvas"), $("#mon-roi").checked && l && l.has_roi ? l.roi : null, { label: l && l.roi_label });
+    }
+
+    function selectMon(loc, fly = true) {
+      if (!S.byName[loc]) return;
+      const changed = Mon.loc !== loc;
+      Mon.loc = loc;
+      const l = S.byName[loc];
+      if (fly && Mon.map && l.lat != null) Mon.map.flyTo([l.lat, l.lng], Math.max(Mon.map.getZoom(), 16), { duration: 0.6 });
+      if (changed) { stopLive(); renderMonitor(); withLoader("Mengambil frame kamera…", () => loadMonFrame(true), 250); }
+    }
+
+    async function loadMonFrame(showErr) {
+      const l = S.byName[Mon.loc];
+      const img = $("#mon-img"), ph = $("#mon-ph");
+      if (!l) { img.hidden = true; ph.hidden = false; ph.textContent = "Pilih lokasi"; return; }
+      if (Mon.live) return;
+      try {
+        const url = await fetchFrame(l.location, "mon");
+        await new Promise((res, rej) => { img.onload = res; img.onerror = () => rej(new Error("gambar rusak")); img.src = url; });
+        $("#mon-stage").style.setProperty("--ar", `${img.naturalWidth} / ${img.naturalHeight}`);
+        img.hidden = false; ph.hidden = true;
+        const b = $("#mon-badge"); b.hidden = false; b.textContent = `Frame ${fmtTime(new Date())} · ${img.naturalWidth}×${img.naturalHeight}`;
+      } catch (e) {
+        if (showErr || img.hidden) { img.hidden = true; ph.hidden = false; ph.textContent = `Belum ada frame: ${e.message}`; $("#mon-badge").hidden = true; }
+      }
+      requestAnimationFrame(drawMonRoi);
+    }
+    function startMonAuto() {
+      stopMonAuto();
+      if (!$("#mon-auto").checked) return;
+      Mon.timer = setInterval(() => { if (!document.hidden && S.tab === "pantauan" && !Loader.count) loadMonFrame(false); }, 5000);
+    }
+    function stopMonAuto() { clearInterval(Mon.timer); Mon.timer = null; }
+    function stopLive() {
+      Mon.live = false;
+      const v = $("#mon-video");
+      if (Mon.hls) { Mon.hls.destroy(); Mon.hls = null; }
+      v.pause(); v.removeAttribute("src"); v.load(); v.hidden = true;
+      $("#mon-live").textContent = "Live CCTV";
+    }
+    $("#mon-live").addEventListener("click", () => {
+      const l = S.byName[Mon.loc];
+      if (!l) return;
+      if (Mon.live) { stopLive(); loadMonFrame(true); return; }
+      Mon.live = true;
+      $("#mon-live").textContent = "Hentikan live";
+      if (l.stream_type === "mjpeg") {
+        const img = $("#mon-img"); img.onload = () => { $("#mon-stage").style.setProperty("--ar", `${img.naturalWidth} / ${img.naturalHeight}`); drawMonRoi(); };
+        img.src = l.stream_url; img.hidden = false; $("#mon-ph").hidden = true; return;
+      }
+      const v = $("#mon-video");
+      v.hidden = false; $("#mon-img").hidden = true; $("#mon-ph").hidden = true;
+      v.onloadedmetadata = () => { $("#mon-stage").style.setProperty("--ar", `${v.videoWidth} / ${v.videoHeight}`); drawMonRoi(); };
+      if (window.Hls && Hls.isSupported()) { Mon.hls = new Hls(); Mon.hls.loadSource(l.stream_url); Mon.hls.attachMedia(v); }
+      else v.src = l.stream_url;
+      v.play().catch(() => toast("Stream tidak bisa diputar (CORS/format). Gunakan 'Ambil frame'.", "warn"));
+    });
+    $("#mon-refresh").addEventListener("click", () => withLoader("Mengambil frame kamera…", () => loadMonFrame(true), 250));
+    $("#mon-auto").addEventListener("change", startMonAuto);
+    $("#mon-roi").addEventListener("change", drawMonRoi);
+    new ResizeObserver(drawMonRoi).observe($("#mon-stage"));
+
+    // =====================================================================
+    //  RIWAYAT
+    // =====================================================================
+    Views.riwayat = {
+      async load() {
+        if (!S.locations.length) await refreshLocations();
+        const d = await api(`/api/logs?limit=${$("#hist-limit").value}${S.sel ? "&location=" + enc(S.sel) : ""}`);
+        S.hist = d.rows || [];
+        renderHist();
+      },
+    };
+    function renderHist() {
+      $("#hist-sub").textContent = `${S.hist.length} baris terbaru · ${S.sel ? (S.byName[S.sel] || {}).label || S.sel : "semua lokasi"}`;
+      $("#hist-table").innerHTML = S.hist.length ? S.hist.map((r) => {
+        const c = r.counts_by_class || {};
+        return `<tr><td>${fmtDT(toDate(r.created_at))}</td><td>${esc((S.byName[r.location] || {}).label || r.location)}</td><td class="mono">${esc(r.device_id || "–")}</td>
+          <td><b>${esc(r.vehicle_count)}</b></td><td>${esc(c._all_lanes_total ?? "–")}</td><td>${esc(c.car ?? 0)}</td><td>${esc(c.motorcycle ?? 0)}</td><td>${esc(c.bus ?? 0)}</td><td>${esc(c.truck ?? 0)}</td>
+          <td>${r.green_duration != null ? esc(r.green_duration) + " dtk" : "–"}</td><td>${pill(r.traffic_status)}</td></tr>`;
+      }).join("") : `<tr><td colspan="11" class="empty">Belum ada data</td></tr>`;
+    }
+    $("#hist-refresh").addEventListener("click", () => showTab("riwayat"));
+    $("#hist-limit").addEventListener("change", () => showTab("riwayat"));
+    $("#hist-csv").addEventListener("click", () => {
+      if (!S.hist.length) return toast("Belum ada data untuk diunduh", "warn");
+      const head = ["waktu", "lokasi", "device_id", "jalur_roi", "semua_jalur", "mobil", "motor", "bus", "truk", "hijau_dtk", "status"];
+      const q = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+      const lines = S.hist.map((r) => { const c = r.counts_by_class || {}; return [r.created_at, r.location, r.device_id, r.vehicle_count, c._all_lanes_total, c.car, c.motorcycle, c.bus, c.truck, r.green_duration, r.traffic_status].map(q).join(","); });
+      const blob = new Blob(["\ufeff" + [head.join(","), ...lines].join("\n")], { type: "text/csv" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob); a.download = `flowincheck-riwayat-${new Date().toISOString().slice(0, 10)}.csv`; a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    });
+
+    async function copyText(t) {
+      try { await navigator.clipboard.writeText(t); toast("Disalin: " + (t.length > 60 ? t.slice(0, 60) + "…" : t)); }
+      catch { prompt("Salin manual:", t); }
+    }
+    // =====================================================================
+    //  ADMIN
+    // =====================================================================
+    const Adm = { map: null, marker: null };
+
+    Views.admin = {
+      async load() {
+        if (!S.locations.length) await refreshLocations();
+        if (!S.token) { showLogin(); return; }
+        $("#adm-login").hidden = true; $("#adm-panel").hidden = false;
+        if (S.sel) S.admLoc = S.sel;
+        if (!S.byName[S.admLoc]) S.admLoc = (S.locations[0] || {}).location || "";
+        $("#adm-loc").innerHTML = S.locations.map((l) => `<option value="${esc(l.location)}">${esc(l.label || l.location)}</option>`).join("");
+        $("#adm-loc").value = S.admLoc;
+        if (!S.admLoc) { $("#adm-content").innerHTML = '<div class="card">Belum ada lokasi di config.yaml</div>'; return; }
+        await Promise.all([loadSettings(), refreshDevices().catch(() => {})]);
+        if (S.token) await mountSub(S.sub);
+      },
+      shown() { subShown(); },
+      async poll() {
+        if (!S.token || !S.settings) return;
+        if (["perangkat", "kamera", "lampu"].includes(S.sub)) { await refreshDevices(); this.live(); }
+      },
+      live() {
+        if (S.sub === "perangkat") renderDevices();
+        if (S.sub === "kamera" || S.sub === "lampu") renderFwDevs();
+      },
+    };
+
+    function showLogin(msg) {
+      $("#adm-panel").hidden = true; $("#adm-login").hidden = false;
+      $("#login-msg").textContent = msg || (S.pub && S.pub.admin_enabled === false ? "Fitur admin dimatikan: isi admin_token di config.yaml lalu restart server." : "");
+      setTimeout(() => $("#login-token").focus(), 50);
+    }
+    $("#login-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const btn = $("#login-btn");
+      btn.disabled = true; btn.innerHTML = '<span class="spinner sm"></span> Memeriksa…';
+      S.token = $("#login-token").value.trim();
+      try {
+        await api("/api/admin/login", { method: "POST", auth: true });
+        ($("#login-remember").checked ? localStorage : sessionStorage).setItem("fic.token", S.token);
+        $("#login-token").value = "";
+        toast("Berhasil masuk sebagai admin");
+        showTab("admin");
+      } catch (err) {
+        S.token = "";
+        $("#login-msg").textContent = err.status === 401 ? "Token salah." : err.message;
+      } finally { btn.disabled = false; btn.textContent = "Masuk"; }
+    });
+    function logout(expired) {
+      S.token = ""; S.settings = null;
+      sessionStorage.removeItem("fic.token"); localStorage.removeItem("fic.token");
+      if (expired) toast("Sesi admin berakhir / token salah, silakan masuk lagi", "warn");
+      if (S.tab === "admin") showLogin();
+    }
+    $("#logout-btn").addEventListener("click", () => { logout(false); toast("Keluar dari admin"); });
+    $("#adm-loc").addEventListener("change", (e) => { S.admLoc = e.target.value; setSel(e.target.value, false); showTab("admin", { reason: "lokasi" }); });
+    $("#adm-side").addEventListener("click", (e) => {
+      const b = e.target.closest("[data-sub]");
+      if (!b || b.dataset.sub === S.sub) return;
+      withLoader(`Memuat ${SUB_TITLE[b.dataset.sub]}…`, () => mountSub(b.dataset.sub), 350).then(subShown);
+    });
+
+    async function loadSettings() {
+      S.settings = await api(`/api/admin/settings?location=${enc(S.admLoc)}`, { auth: true });
+      return S.settings;
+    }
+
+    async function mountSub(name) {
+      if (!SUB_TITLE[name]) name = "lokasi";
+      S.sub = name; localStorage.setItem("fic.sub", name);
+      $$("#adm-side [data-sub]").forEach((b) => b.classList.toggle("active", b.dataset.sub === name));
+      if (Adm.map) { Adm.map.remove(); Adm.map = null; Adm.marker = null; }
+      const box = $("#adm-content");
+      box.innerHTML = "";
+      box.appendChild($(`#tpl-${name}`).content.cloneNode(true));
+      $$("[data-topic]", box).forEach((el) => (el.textContent = (S.settings.topics || {})[el.dataset.topic] || "–"));
+      $$("[data-cmd]", box).forEach((b) => b.addEventListener("click", () => sendCmd(b.dataset.cmd, b.dataset.target, b)));
+      $$("form", box).forEach((f) => f.addEventListener("input", () => syncOutputs(f)));
+      await ({ lokasi: initLokasi, roi: initRoi, lalin: initLalin, kamera: initKamera, lampu: initLampu, perangkat: initPerangkat }[name])();
+    }
+    function subShown() {
+      if (Adm.map) { Adm.map.invalidateSize(); if (Adm.marker) Adm.map.setView(Adm.marker.getLatLng()); }
+      if (S.sub === "roi") renderRoi();
+    }
+
+    // ---------- form util ----------
+    function getPath(o, path) { return path.split(".").reduce((a, k) => (a == null ? a : a[k]), o); }
+    function fillForm(form, obj) {
+      $$("[name]", form).forEach((el) => {
+        const v = getPath(obj, el.name);
+        if (v === undefined) return;
+        if (el.type === "checkbox") el.checked = !!v; else el.value = v ?? "";
+      });
+      syncOutputs(form);
+    }
+    function readForm(form) {
+      const out = {};
+      $$("[name]", form).forEach((el) => {
+        let v = el.type === "checkbox" ? el.checked : el.value.trim();
+        if (el.dataset.type === "int") v = v === "" ? null : Number(v);
+        const ks = el.name.split(".");
+        let o = out;
+        ks.slice(0, -1).forEach((k) => (o = o[k] = o[k] || {}));
+        o[ks[ks.length - 1]] = v;
+      });
+      return out;
+    }
+    function syncOutputs(form) {
+      $$(".range-wrap", form).forEach((w) => { const r = $("input", w); $("output", w).textContent = (+r.value > 0 && r.min < 0 ? "+" : "") + r.value; });
+      $$("[data-mmss]", form).forEach((s) => { const i = $(`[name="${s.dataset.mmss}"]`, form); s.textContent = i && i.value !== "" ? `= ${mmss(i.value)} (mm:dd)` : ""; });
+      if (form.id === "f-thresholds") {
+        const d = readForm(form);
+        $("#thr-preview").innerHTML = d.density_high > d.density_low
+          ? `${pill("LANCAR")} 0–${d.density_low - 1} &nbsp; ${pill("PADAT")} ${d.density_low}–${d.density_high - 1} &nbsp; ${pill("MACET")} ≥ ${d.density_high} kendaraan`
+          : `<span class="warn">Batas MACET harus lebih besar dari batas LANCAR</span>`;
+      }
+      if (form.id === "f-camera") camEstimate(form);
+    }
+
+    async function saveSection(section, data, form) {
+      const btn = form && $('button[type="submit"]', form);
+      const label = btn && btn.innerHTML;
+      if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner sm"></span> Menyimpan…'; }
+      try {
+        const res = await api("/api/admin/settings", { method: "PUT", auth: true, body: { location: S.admLoc, section, data } });
+        S.settings = res.settings;
+        if (section === "camera" || section === "light") {
+          const v = res.settings.config_version;
+          if (res.published) toast(`Tersimpan (konfigurasi v${v}) dan terkirim ke perangkat via MQTT`);
+          else toast(`Tersimpan (v${v}). MQTT server tidak terhubung — perangkat mengambil lewat HTTP (kamera ±60 dtk, lampu tiap ${res.settings.light.poll_interval_s} dtk)`, "warn", 7000);
+        } else toast("Tersimpan, dipakai mulai frame berikutnya");
+        refreshLocations().catch(() => {});
+        return res;
+      } catch (e) { toast("Gagal menyimpan: " + e.message, "err", 6000); throw e; }
+      finally { if (btn) { btn.disabled = false; btn.innerHTML = label; } }
+    }
+
+    async function sendCmd(cmd, target, btn) {
+      const names = { capture_now: "ambil foto sekarang", reboot: `reboot ${target === "light" ? "lampu" : target === "camera" ? "kamera" : "semua perangkat"}`, resend_config: "kirim ulang konfigurasi" };
+      if (cmd === "reboot" && !confirm(`Yakin ${names[cmd]} di ${S.admLoc}?`)) return;
+      if (btn) btn.disabled = true;
+      try {
+        const r = await api("/api/admin/command", { method: "POST", auth: true, body: { location: S.admLoc, target, cmd } });
+        toast(`Perintah "${names[cmd]}" terkirim${cmd === "resend_config" ? ` (v${r.version})` : ""}`);
+        if (cmd === "resend_config") { await loadSettings(); Views.admin.live(); if (S.sub === "perangkat") initPerangkat(); }
+      } catch (e) { toast("Gagal: " + e.message, "err", 6000); }
+      finally { if (btn) btn.disabled = false; }
+    }
+
+    // ---------- Lokasi & koordinat ----------
+    function initLokasi() {
+      const f = $("#f-lokasi");
+      const s = S.settings;
+      fillForm(f, { label: s.label || "", lat: fmtNum(s.lat), lng: fmtNum(s.lng) });
+      if (window.L) {
+        const has = s.lat != null && s.lng != null;
+        Adm.map = L.map("adm-map").setView(has ? [s.lat, s.lng] : DEFAULT_CENTER, has ? 17 : 13);
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(Adm.map);
+        S.locations.forEach((l) => {
+          if (l.location === S.admLoc || l.lat == null) return;
+          L.circleMarker([l.lat, l.lng], { radius: 6, color: "#6b7280", weight: 2, fillOpacity: 0.5 }).bindTooltip(esc(l.label || l.location)).addTo(Adm.map);
+        });
+        if (has) placeMarker(s.lat, s.lng);
+        Adm.map.on("click", (e) => setCoord(e.latlng.lat, e.latlng.lng));
+      } else $("#adm-map").innerHTML = '<div class="ph">Peta gagal dimuat, isi lat/lng manual</div>';
+
+      const latI = $('[name="lat"]', f), lngI = $('[name="lng"]', f);
+      const fromInputs = () => { const a = parseFloat(latI.value), b = parseFloat(lngI.value); if (isFinite(a) && isFinite(b) && Math.abs(a) <= 90 && Math.abs(b) <= 180) placeMarker(a, b, true); };
+      latI.addEventListener("change", fromInputs); lngI.addEventListener("change", fromInputs);
+      $("#paste-coord").addEventListener("input", (e) => {
+        const m = e.target.value.match(/(-?\d{1,2}(?:\.\d+)?)\s*[,;\s]\s*(-?\d{1,3}(?:\.\d+)?)/);
+        if (m) { setCoord(+m[1], +m[2]); e.target.value = ""; }
+      });
+      $("#geo-btn").addEventListener("click", () => {
+        if (!navigator.geolocation) return toast("Browser tidak mendukung geolokasi", "err");
+        toast("Mengambil lokasi perangkat…");
+        navigator.geolocation.getCurrentPosition((p) => setCoord(p.coords.latitude, p.coords.longitude), (err) => toast("Gagal ambil lokasi: " + err.message, "err"), { enableHighAccuracy: true, timeout: 15000 });
+      });
+      $("#clear-coord").addEventListener("click", () => { latI.value = lngI.value = ""; if (Adm.marker) { Adm.marker.remove(); Adm.marker = null; } });
+      f.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const d = readForm(f);
+        await saveSection("location", { label: d.label, lat: d.lat === "" ? null : d.lat, lng: d.lng === "" ? null : d.lng }, f).catch(() => {});
+      });
+    }
+    function placeMarker(lat, lng, pan) {
+      if (!Adm.map) return;
+      if (!Adm.marker) {
+        Adm.marker = L.marker([lat, lng], { draggable: true, autoPan: true }).addTo(Adm.map);
+        Adm.marker.on("dragend", () => { const p = Adm.marker.getLatLng(); setCoord(p.lat, p.lng, false); });
+      } else Adm.marker.setLatLng([lat, lng]);
+      Adm.marker.bindTooltip(`${lat.toFixed(6)}, ${lng.toFixed(6)}`, { direction: "top", offset: [0, -30] });
+      if (pan) Adm.map.setView([lat, lng], Math.max(Adm.map.getZoom(), 16));
+    }
+    function setCoord(lat, lng, pan = true) {
+      const f = $("#f-lokasi");
+      $('[name="lat"]', f).value = lat.toFixed(6);
+      $('[name="lng"]', f).value = lng.toFixed(6);
+      placeMarker(lat, lng, pan);
+    }
+
+    // ---------- Editor ROI ----------
+    const R = { pts: [], saved: null, sel: -1, hover: -1, drag: -1, hist: [], before: null };
+    const round4 = (v) => Math.round(Math.min(1, Math.max(0, v)) * 10000) / 10000;
+    const roiArea = (p) => Math.abs(p.reduce((s, [x1, y1], i) => { const [x2, y2] = p[(i + 1) % p.length]; return s + x1 * y2 - x2 * y1; }, 0)) / 2;
+    const PRESETS = {
+      "preset-full": [[0.02, 0.02], [0.98, 0.02], [0.98, 0.98], [0.02, 0.98]],
+      "preset-right": [[0.52, 0.35], [0.66, 0.35], [0.98, 0.98], [0.55, 0.98]],
+      "preset-left": [[0.34, 0.35], [0.48, 0.35], [0.45, 0.98], [0.02, 0.98]],
+    };
+
+    async function initRoi() {
+      const s = S.settings;
+      R.saved = s.roi ? JSON.parse(JSON.stringify(s.roi)) : null;
+      R.pts = R.saved ? JSON.parse(JSON.stringify(R.saved)) : [];
+      R.hist = []; R.sel = R.hover = R.drag = -1;
+      const f = $("#f-roi");
+      fillForm(f, { roi_label: s.roi_label || "" });
+      $("#roi-stage").style.setProperty("--ar", s.mode === "cctv" ? "16 / 9" : "4 / 3");
+      $("#roi-preview-btn").hidden = s.mode !== "cctv" || DEMO;
+      const cv = $("#roi-canvas");
+      cv.addEventListener("pointerdown", roiDown);
+      cv.addEventListener("pointermove", roiMove);
+      cv.addEventListener("pointerup", roiUp);
+      cv.addEventListener("pointercancel", roiUp);
+      cv.addEventListener("pointerleave", () => { $("#roi-pos").textContent = "x –, y –"; if (R.hover !== -1) { R.hover = -1; renderRoi(); } });
+      cv.addEventListener("contextmenu", (e) => { e.preventDefault(); roiDelete(hitPoint(evPos(e))); });
+      cv.addEventListener("dblclick", (e) => roiDelete(hitPoint(evPos(e))));
+      new ResizeObserver(() => renderRoi()).observe($("#roi-stage"));
+      $$("[data-roi]").forEach((b) => b.addEventListener("click", () => roiAction(b.dataset.roi)));
+      $('[name="roi_label"]', f).addEventListener("input", () => renderRoi());
+      $("#roi-json").addEventListener("input", (e) => {
+        const msg = $("#roi-json-msg");
+        try {
+          const v = JSON.parse(e.target.value || "[]");
+          if (!Array.isArray(v) || v.some((p) => !Array.isArray(p) || p.length !== 2 || p.some((n) => typeof n !== "number" || n < 0 || n > 1))) throw new Error("format harus [[x, y], ...] dengan nilai 0–1");
+          if (v.length > 40) throw new Error("maksimal 40 titik");
+          R.hist.push(JSON.stringify(R.pts)); R.pts = v.map(([x, y]) => [round4(x), round4(y)]); R.sel = -1;
+          msg.textContent = "✓ valid"; msg.className = "text-lancar"; renderRoi(true);
+        } catch (err) { msg.textContent = "✗ " + err.message; msg.className = "text-macet"; }
+      });
+      f.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        if (R.pts.length < 3) return toast("ROI butuh minimal 3 titik", "err");
+        if (roiArea(R.pts) < 0.002) return toast("Area ROI terlalu kecil atau titiknya segaris", "err");
+        const res = await saveSection("roi", { roi: R.pts, roi_label: readForm(f).roi_label }, f).catch(() => null);
+        if (res) { R.saved = res.settings.roi; renderRoi(); }
+      });
+      renderRoi();
+      await loadRoiFrame();
+    }
+
+    async function loadRoiFrame() {
+      const img = $("#roi-img"), ph = $("#roi-ph");
+      ph.hidden = false; ph.innerHTML = '<div><div class="spinner" style="margin:0 auto 10px"></div>Mengambil frame kamera…</div>';
+      try {
+        const url = await fetchFrame(S.admLoc, "roi");
+        await new Promise((res, rej) => { img.onload = res; img.onerror = () => rej(new Error("gambar rusak")); img.src = url; });
+        $("#roi-stage").style.setProperty("--ar", `${img.naturalWidth} / ${img.naturalHeight}`);
+        img.hidden = false; ph.hidden = true;
+      } catch (e) {
+        img.hidden = true;
+        ph.innerHTML = `<div>Frame belum tersedia (${esc(e.message)}).<br><span class="small">ROI tetap bisa digambar; koordinat 0–1 berlaku untuk resolusi apa pun.</span></div>`;
+      }
+      renderRoi();
+    }
+
+    function evPos(e) {
+      const r = $("#roi-canvas").getBoundingClientRect();
+      return { x: round4((e.clientX - r.left) / r.width), y: round4((e.clientY - r.top) / r.height), px: e.clientX - r.left, py: e.clientY - r.top, w: r.width, h: r.height, touch: e.pointerType === "touch" };
+    }
+    function hitPoint(p) {
+      const tol = p.touch ? 20 : 11;
+      for (let i = R.pts.length - 1; i >= 0; i--) if (Math.hypot(R.pts[i][0] * p.w - p.px, R.pts[i][1] * p.h - p.py) <= tol) return i;
+      return -1;
+    }
+    function hitEdge(p) {
+      const n = R.pts.length;
+      if (n < 3) return -1;
+      let best = -1, bestD = p.touch ? 14 : 8;
+      for (let i = 0; i < n; i++) {
+        const [ax, ay] = [R.pts[i][0] * p.w, R.pts[i][1] * p.h], [bx, by] = [R.pts[(i + 1) % n][0] * p.w, R.pts[(i + 1) % n][1] * p.h];
+        const dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy || 1;
+        const t = Math.max(0, Math.min(1, ((p.px - ax) * dx + (p.py - ay) * dy) / L2));
+        const d = Math.hypot(ax + t * dx - p.px, ay + t * dy - p.py);
+        if (d < bestD) { bestD = d; best = i + 1; }
+      }
+      return best;
+    }
+    function roiDown(e) {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      e.target.setPointerCapture(e.pointerId);
+      const p = evPos(e);
+      let i = hitPoint(p);
+      R.before = JSON.stringify(R.pts);
+      if (i < 0) {
+        if (R.pts.length >= 40) return toast("Maksimal 40 titik", "warn");
+        const ins = hitEdge(p);
+        if (ins >= 0) { R.pts.splice(ins, 0, [p.x, p.y]); i = ins; }
+        else { R.pts.push([p.x, p.y]); i = R.pts.length - 1; }
+      }
+      R.sel = i; R.drag = i;
+      renderRoi(true);
+    }
+    function roiMove(e) {
+      const p = evPos(e);
+      $("#roi-pos").textContent = `x ${p.x.toFixed(3)}, y ${p.y.toFixed(3)}`;
+      if (R.drag >= 0) { R.pts[R.drag] = [p.x, p.y]; renderRoi(true); return; }
+      const h = hitPoint(p);
+      if (h !== R.hover) { R.hover = h; e.target.style.cursor = h >= 0 ? "grab" : hitEdge(p) >= 0 ? "copy" : "crosshair"; renderRoi(); }
+    }
+    function roiUp() {
+      if (R.drag >= 0 && R.before !== null && R.before !== JSON.stringify(R.pts)) R.hist.push(R.before);
+      R.drag = -1; R.before = null;
+      if (R.hist.length > 100) R.hist.shift();
+    }
+    function roiDelete(i) {
+      if (i < 0) return;
+      R.hist.push(JSON.stringify(R.pts));
+      R.pts.splice(i, 1); R.sel = -1; R.hover = -1;
+      renderRoi(true);
+    }
+    function roiAction(a) {
+      const f = $("#f-roi");
+      if (a === "undo") { if (R.hist.length) { R.pts = JSON.parse(R.hist.pop()); R.sel = -1; renderRoi(true); } else toast("Tidak ada yang bisa diurungkan", "warn", 2000); }
+      else if (a === "del") roiDelete(R.sel);
+      else if (a === "clear") { R.hist.push(JSON.stringify(R.pts)); R.pts = []; R.sel = -1; renderRoi(true); }
+      else if (a === "reset") { R.hist.push(JSON.stringify(R.pts)); R.pts = R.saved ? JSON.parse(JSON.stringify(R.saved)) : []; R.sel = -1; renderRoi(true); }
+      else if (a === "frame") withLoader("Mengambil frame kamera…", loadRoiFrame, 250);
+      else if (PRESETS[a]) { R.hist.push(JSON.stringify(R.pts)); R.pts = JSON.parse(JSON.stringify(PRESETS[a])); R.sel = -1; renderRoi(true); }
+      else if (a === "copy-yaml") {
+        const label = readForm(f).roi_label;
+        copyText(`${label ? `roi_label: "${label.replace(/"/g, "'")}"\n` : ""}roi:\n${R.pts.map(([x, y]) => `  - [${x}, ${y}]`).join("\n")}`);
+      }
+      else if (a === "preview") window.open(`${API_BASE}/api/debug/roi-preview?location=${enc(S.admLoc)}`, "_blank", "noopener");
+      else if (a === "disable") {
+        if (!confirm("Matikan ROI? Semua kendaraan di seluruh frame akan dihitung.")) return;
+        saveSection("roi", { roi: null, roi_label: readForm(f).roi_label }, null).then((res) => { R.saved = null; R.hist.push(JSON.stringify(R.pts)); R.pts = []; renderRoi(true); }).catch(() => {});
+      }
+    }
+    document.addEventListener("keydown", (e) => {
+      if (S.tab !== "admin" || S.sub !== "roi" || /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
+      if ((e.key === "Delete" || e.key === "Backspace") && R.sel >= 0) { e.preventDefault(); roiDelete(R.sel); }
+      else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") { e.preventDefault(); roiAction("undo"); }
+      else if (e.key === "Escape") { R.sel = -1; renderRoi(); }
+    });
+    function renderRoi(updateJson) {
+      const cv = $("#roi-canvas");
+      if (!cv) return;
+      const f = $("#f-roi");
+      drawRoi(cv, R.pts, { editable: true, sel: R.sel, hover: R.hover, label: f ? readForm(f).roi_label : "" });
+      $("#roi-count").textContent = `${R.pts.length} titik${R.pts.length >= 3 ? ` · area ${(roiArea(R.pts) * 100).toFixed(1)}%` : ""}`;
+      const ta = $("#roi-json");
+      if (updateJson !== false && document.activeElement !== ta) ta.value = R.pts.length ? "[\n" + R.pts.map((p) => `  [${p[0]}, ${p[1]}]`).join(",\n") + "\n]" : "[]";
+      const same = JSON.stringify(R.pts) === JSON.stringify(R.saved || []);
+      const st = $("#roi-state");
+      if (!R.saved && !R.pts.length) { st.textContent = "ROI tidak aktif"; st.className = "pill"; }
+      else if (same) { st.textContent = "Tersimpan"; st.className = "pill pill-lancar"; }
+      else { st.textContent = "Belum disimpan"; st.className = "pill pill-padat"; }
+    }
+
+    // ---------- Ambang & program ----------
+    function initLalin() {
+      const ft = $("#f-thresholds"), fp = $("#f-program");
+      fillForm(ft, S.settings.thresholds);
+      fillForm(fp, S.settings.program);
+      ft.addEventListener("submit", (e) => { e.preventDefault(); saveSection("thresholds", readForm(ft), ft).catch(() => {}); });
+      fp.addEventListener("submit", (e) => { e.preventDefault(); saveSection("program", readForm(fp), fp).catch(() => {}); });
+    }
+
+    // ---------- Firmware kamera ----------
+    const FS_RES = { QQVGA: [160, 120], QVGA: [320, 240], VGA: [640, 480], SVGA: [800, 600], XGA: [1024, 768], SXGA: [1280, 1024], UXGA: [1600, 1200] };
+    function initKamera() {
+      const f = $("#f-camera");
+      const list = (S.pub && S.pub.framesizes) || Object.keys(FS_RES);
+      $("#opt-framesize").innerHTML = list.map((k) => `<option value="${k}">${k}${FS_RES[k] ? ` — ${FS_RES[k][0]}×${FS_RES[k][1]}` : ""}</option>`).join("");
+      fillForm(f, S.settings.camera);
+      f.addEventListener("submit", (e) => { e.preventDefault(); saveSection("camera", readForm(f), f).then(renderFwDevs).catch(() => {}); });
+      renderFwDevs();
+    }
+    function camEstimate(f) {
+      const d = readForm(f);
+      const [w, h] = FS_RES[d.framesize] || [800, 600];
+      const kb = Math.round((w * h * 0.075 / 1000) * Math.pow(12 / Math.max(4, d.jpeg_quality || 12), 0.8));
+      const perHour = Math.round(3600 / Math.max(1, d.capture_interval_s || 5));
+      $("#cam-estimate").innerHTML = `Perkiraan kasar: <b>±${kb} KB/frame</b> · <b>${perHour} frame/jam</b> · <b>±${((kb * perHour) / 1024).toFixed(0)} MB/jam</b> upload. Resolusi lebih besar = deteksi motor jauh lebih akurat, tapi butuh PSRAM dan WiFi stabil.`;
+    }
+    // ---------- Firmware lampu ----------
+    function initLampu() {
+      const f = $("#f-light");
+      fillForm(f, S.settings.light);
+      f.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const d = readForm(f);
+        if (d.fallback_yellow < 3) return toast("Kuning minimal 3 detik", "err");
+        saveSection("light", d, f).then(renderFwDevs).catch(() => {});
+      });
+      renderFwDevs();
+    }
+
+    // ---------- Perangkat ----------
+    const locDevices = () => S.devices.filter((d) => d.location === S.admLoc);
+    const devSeen = (d) => (d._seen ? Math.floor((Date.now() - d._seen) / 1000) : d.seconds_since_seen);
+    function syncBadge(d) {
+      const v = S.settings && S.settings.config_version;
+      if (d.config_version == null) return `<span class="sync muted">belum melapor</span>`;
+      return +d.config_version === +v ? `<span class="sync text-lancar">✓ v${d.config_version} sinkron</span>` : `<span class="sync text-padat">⟳ v${d.config_version} → v${v}</span>`;
+    }
+    function renderFwDevs() {
+      const role = S.sub === "kamera" ? "camera" : "light";
+      const box = $(S.sub === "kamera" ? "#fw-cam-devs" : "#fw-light-devs");
+      if (!box) return;
+      const devs = locDevices().filter((d) => d.role === role);
+      box.innerHTML = devs.length ? devs.map((d) => `<span class="pill ${d.online ? "pill-lancar" : "pill-macet"}">${esc(d.device_id)} · ${d.online ? "online" : "offline"}</span><span class="pill">fw ${esc(d.fw || "?")}</span>${syncBadge(d)}`).join("")
+        : `<span class="pill">Belum ada perangkat ${role === "camera" ? "kamera" : "lampu"} yang melapor</span>`;
+    }
+    function initPerangkat() {
+      renderDevices();
+      const t = S.settings.topics || {};
+      $("#topic-kv").innerHTML = Object.entries({ "Status (retained)": t.status, "Konfigurasi (retained)": t.config, "Perintah": t.cmd, "State perangkat": t.state }).map(([k, v]) => `<dt>${k}</dt><dd class="mono">${esc(v || "–")}</dd>`).join("");
+    }
+    function renderDevices() {
+      const tb = $("#dev-table");
+      if (!tb) return;
+      const devs = locDevices();
+      tb.innerHTML = devs.length ? devs.map((d) => `<tr>
+        <td class="mono"><b>${esc(d.device_id)}</b></td><td>${d.role === "camera" ? "Kamera ESP32-S3" : d.role === "light" ? "Lampu ESP32-C6" : esc(d.role || "–")}</td>
+        <td>${d.online ? '<span class="pill pill-lancar">online</span>' : '<span class="pill pill-macet">offline</span>'}</td>
+        <td>${devSeen(d) != null ? ago(new Date(Date.now() - devSeen(d) * 1000)) : "–"}</td>
+        <td>${d.rssi != null ? `${esc(d.rssi)} dBm` : "–"}</td><td>${d.battery != null ? esc(d.battery) + "%" : "–"}</td>
+        <td>${esc(d.fw || "–")}</td><td>${syncBadge(d)}</td></tr>`).join("")
+        : `<tr><td colspan="8" class="empty">Belum ada perangkat yang melapor untuk lokasi ini</td></tr>`;
+      const s = S.settings || {};
+      const kv = $("#sync-kv");
+      if (kv) kv.innerHTML = `<dt>Versi konfigurasi</dt><dd>v${esc(s.config_version)}</dd>
+        <dt>MQTT server</dt><dd>${s.mqtt_connected ? '<span class="text-lancar">terhubung</span>' : '<span class="text-padat">tidak terhubung (perangkat via HTTP)</span>'}</dd>
+        <dt>MQTT browser</dt><dd>${S.mqttOk ? '<span class="text-lancar">live</span>' : "polling API"}</dd>
+        <dt>Mode lokasi</dt><dd>${esc(s.mode)}</dd><dt>Slug</dt><dd class="mono">${esc(s.slug)}</dd>`;
+    }
+    // =====================================================================
+    //  DEMO (?demo=1) — data simulasi supaya tampilan bisa dicoba tanpa server
+    // =====================================================================
+    const Demo = (() => {
+      const CAM = { framesize: "SVGA", jpeg_quality: 12, capture_interval_s: 5, vflip: true, hmirror: false, brightness: 1, contrast: 0, saturation: 0 };
+      const LIGHT = { poll_interval_s: 15, fallback_red: 180, fallback_yellow: 30, fallback_green: 420, offline_mode: "fallback", offline_after_s: 120 };
+      const PROG = { baseline: { red: 300, yellow: 30, green: 60 }, congested: { red: 120, yellow: 60, green: 180 } };
+      const mk = (o) => ({ camera: { ...CAM }, light: { ...LIGHT }, program: JSON.parse(JSON.stringify(PROG)), thresholds: { density_low: 5, density_high: 15, calibration_max_count: 20 }, config_version: 3, ...o });
+      const L = {
+        "Malang-ESP32": mk({ mode: "esp32", slug: "malang-esp32", device_id: "esp32-malang-1", label: "Simpang Kayutangan", lat: -7.9797, lng: 112.6304, roi: [[0.5, 0.36], [0.64, 0.36], [0.96, 0.98], [0.52, 0.98]], roi_label: "jalur kanan (arah utara)", base: 7, w: 800, h: 600 }),
+        "Malang-CCTV": mk({ mode: "cctv", slug: "malang-cctv", device_id: "cctv-malang", label: "Bundaran Tugu", lat: -7.9772, lng: 112.6343, roi: [[0.9, 0.09], [0.81, 0.25], [0.62, 0.49], [0.48, 0.74], [0.44, 0.9], [0.53, 1], [0.78, 1], [0.94, 0.86], [0.97, 0.5], [0.94, 0.18]], roi_label: "jalur kanan (arah timur)", stream_type: "hls", stream_url: "https://example.invalid/live.m3u8", base: 13, thresholds: { density_low: 6, density_high: 18, calibration_max_count: 25 }, w: 1280, h: 720 }),
+        "Malang-Sukarno": mk({ mode: "esp32", slug: "malang-sukarno", device_id: "esp32-malang-2", label: "Simpang Soekarno-Hatta", lat: -7.9446, lng: 112.6161, roi: null, roi_label: "", base: 17, w: 800, h: 600 }),
+        "Batu-Alun": mk({ mode: "esp32", slug: "batu-alun", device_id: "esp32-batu-1", label: "Alun-alun Batu", lat: null, lng: null, roi: null, roi_label: "", base: 3, w: 800, h: 600 }),
+      };
+      const latest = {};
+      const logs = [];
+      const devices = {};
+      const rnd = (a, b) => a + Math.random() * (b - a);
+      function statusOf(s, n) { return n < s.thresholds.density_low ? "LANCAR" : n < s.thresholds.density_high ? "PADAT" : "MACET"; }
+      function tick(name, ts = Date.now() / 1000) {
+        const s = L[name];
+        const prev = latest[name] ? latest[name].vehicle_count : s.base;
+        const n = Math.max(0, Math.round(prev + rnd(-3, 3.4) + (s.base - prev) * 0.25));
+        const st = statusOf(s, n);
+        const p = st === "LANCAR" ? s.program.baseline : s.program.congested;
+        const motor = Math.round(n * 0.62), car = Math.round(n * 0.3), bus = n > 10 ? 1 : 0, truck = Math.max(0, n - motor - car - bus);
+        const all = s.roi ? n + Math.round(rnd(2, 9)) : n;
+        latest[name] = { red_seconds: p.red, yellow_seconds: p.yellow, green_seconds: p.green, traffic_status: st, vehicle_count: n, all_lanes_total: all, counts_by_class: { car, motorcycle: motor, bus, truck }, updated_at: ts };
+        logs.unshift({ created_at: new Date(ts * 1000).toISOString(), location: name, device_id: s.device_id, vehicle_count: n, traffic_status: st, green_duration: p.green, battery_level: 100, counts_by_class: { car, motorcycle: motor, bus, truck, ...(s.roi ? { _all_lanes_total: all, _lane_label: s.roi_label } : {}) } });
+        if (logs.length > 400) logs.pop();
+        return latest[name];
+      }
+      const now = Date.now() / 1000;
+      for (let i = 60; i >= 0; i--) Object.keys(L).forEach((n) => { if (n !== "Batu-Alun") tick(n, now - i * 47 - rnd(0, 20)); });
+      Object.entries(L).forEach(([n, s]) => {
+        if (n === "Batu-Alun") return;
+        devices[s.device_id] = { device_id: s.device_id, location: n, role: "camera", online: true, rssi: -58 - Math.round(rnd(0, 20)), fw: "2.1.0", config_version: s.config_version, battery: 100, _seen: Date.now() - 4000 };
+        devices["light-" + s.slug] = { device_id: "light-" + s.slug, location: n, role: "light", online: n !== "Malang-Sukarno", rssi: -64, fw: n === "Malang-CCTV" ? "2.0.0" : "2.1.0", config_version: n === "Malang-CCTV" ? 2 : s.config_version, _seen: Date.now() - (n === "Malang-Sukarno" ? 900000 : 9000) };
+      });
+      const publicLoc = (n) => {
+        const s = L[n];
+        return { location: n, slug: s.slug, mode: s.mode, device_id: s.device_id, label: s.label, lat: s.lat, lng: s.lng, has_roi: !!s.roi, roi: s.roi, roi_label: s.roi_label, stream_url: s.stream_url || null, stream_type: s.stream_type || null, program: s.program, thresholds: s.thresholds, config_version: s.config_version, ...(latest[n] || {}) };
+      };
+      function hourly(range, loc) {
+        const base = loc ? L[loc].base : 10;
+        const hNow = new Date().getHours();
+        const values = Array.from({ length: 24 }, (_, h) => {
+          if (range === "today" && h > hNow) return 0;
+          const v = base * (0.25 + 1.1 * Math.exp(-((h - 7.5) ** 2) / 3) + 1.25 * Math.exp(-((h - 17) ** 2) / 4) + 0.35 * Math.exp(-((h - 12) ** 2) / 6)) * (range === "yesterday" ? 0.92 : 1);
+          return Math.round(v * 10) / 10;
+        });
+        const peak = Math.max(...values);
+        return { range, labels: values.map((_, h) => String(h).padStart(2, "0")), values, peak_hour: peak > 0 ? values.indexOf(peak) : null, peak_value: peak, samples: range === "7days" ? 6048 : 864 };
+      }
+      function err(status, detail) { const e = new Error(detail); e.status = status; throw e; }
+      async function apiFn(path, method, body) {
+        await wait(rnd(120, 380));
+        setConn("api", true, "API (simulasi)");
+        const u = new URL(path, "http://demo");
+        const q = Object.fromEntries(u.searchParams);
+        const auth = () => { if (!S.token) err(401, "Token admin salah"); };
+        switch (u.pathname) {
+          case "/api/public-config": return { mqtt: { enabled: true, ws_url: "wss://demo", prefix: "greenflow" }, admin_enabled: true, framesizes: Object.keys(FS_RES), offline_modes: ["fallback", "blink_yellow", "all_red"] };
+          case "/api/locations": return { locations: Object.keys(L).map(publicLoc), mqtt_connected: true };
+          case "/api/logs": return { rows: logs.filter((r) => !q.location || r.location === q.location).slice(0, +q.limit || 20) };
+          case "/api/hourly": return hourly(q.range || "today", q.location);
+          case "/api/devices": return { devices: Object.values(devices).map((d) => ({ ...d })), mqtt_connected: true };
+          case "/api/admin/login": auth(); return { ok: true };
+          case "/api/admin/command": auth(); if (body.cmd === "resend_config") L[body.location].config_version++; return { ok: true, version: L[body.location].config_version };
+          case "/api/admin/settings": {
+            auth();
+            const loc = method === "PUT" ? body.location : q.location;
+            const s = L[loc];
+            if (!s) err(404, "lokasi tidak ada");
+            if (method === "PUT") {
+              const d = body.data || {};
+              if (body.section === "location") Object.assign(s, { label: d.label, lat: d.lat == null || d.lat === "" ? null : +(+d.lat).toFixed(6), lng: d.lng == null || d.lng === "" ? null : +(+d.lng).toFixed(6) });
+              else if (body.section === "roi") Object.assign(s, { roi: d.roi, roi_label: d.roi_label });
+              else if (body.section === "thresholds") { if (d.density_high <= d.density_low) err(422, "density_high harus lebih besar dari density_low"); s.thresholds = d; }
+              else if (body.section === "program") s.program = d;
+              else { s[body.section] = { ...s[body.section], ...d }; s.config_version++; setTimeout(() => Object.values(devices).forEach((x) => { if (x.location === loc && x.online && x.role === body.section) { x.config_version = s.config_version; onDeviceState(s.slug, x.device_id, x); } }), 1500); }
+            }
+            const out = { lat: s.lat, lng: s.lng, label: s.label, roi: s.roi, roi_label: s.roi_label, config_version: s.config_version, camera: s.camera, light: s.light, thresholds: s.thresholds, program: s.program, location: loc, slug: s.slug, mode: s.mode, has_roi: !!s.roi, mqtt_connected: true,
+              topics: { status: `greenflow/${s.slug}/status`, config: `greenflow/${s.slug}/config`, cmd: `greenflow/${s.slug}/cmd`, state: `greenflow/${s.slug}/device/<device_id>/state` } };
+            return method === "PUT" ? { ok: true, published: ["camera", "light"].includes(body.section), mqtt_connected: true, settings: out } : out;
+          }
+        }
+        err(404, "tidak ada di demo: " + u.pathname);
+      }
+      // gambar jalan sintetis sebagai pengganti frame kamera
+      async function frame(name) {
+        await wait(rnd(150, 400));
+        const s = L[name];
+        if (name === "Batu-Alun") throw new Error("belum ada frame untuk lokasi ini");
+        const W = s.w, H = s.h, c = document.createElement("canvas");
+        c.width = W; c.height = H;
+        const g = c.getContext("2d");
+        const sky = g.createLinearGradient(0, 0, 0, H * 0.35); sky.addColorStop(0, "#8fb3c9"); sky.addColorStop(1, "#cfdde4");
+        g.fillStyle = sky; g.fillRect(0, 0, W, H);
+        g.fillStyle = "#6f8f62"; g.fillRect(0, H * 0.33, W, H);
+        for (let i = 0; i < 9; i++) { g.fillStyle = ["#9aa5a8", "#b9a88f", "#8d9aa0"][i % 3]; const bw = W / 9; g.fillRect(i * bw, H * (0.12 + (i % 4) * 0.04), bw - 6, H * 0.25); }
+        const vx = W * 0.5, vy = H * 0.33;
+        g.fillStyle = "#4a4f53"; g.beginPath(); g.moveTo(vx - W * 0.09, vy); g.lineTo(vx + W * 0.09, vy); g.lineTo(W * 1.02, H); g.lineTo(-W * 0.02, H); g.closePath(); g.fill();
+        g.strokeStyle = "#f3f3f3"; g.lineWidth = W * 0.004; g.setLineDash([H * 0.05, H * 0.04]);
+        g.beginPath(); g.moveTo(vx, vy); g.lineTo(vx, H); g.stroke(); g.setLineDash([]);
+        g.strokeStyle = "#e9c84a"; g.lineWidth = W * 0.003;
+        [[-0.09, -0.02], [0.09, 1.02]].forEach(([a, b]) => { g.beginPath(); g.moveTo(vx + W * a, vy); g.lineTo(W * b, H); g.stroke(); });
+        const n = (latest[name] || {}).all_lanes_total || 8;
+        let seed = Math.floor(Date.now() / 5000) + name.length;
+        const r = () => ((seed = (seed * 9301 + 49297) % 233280) / 233280);
+        const cars = [];
+        for (let i = 0; i < n; i++) cars.push({ t: 0.08 + r() * 0.9, side: r() < 0.5 ? -1 : 1, off: r(), moto: r() < 0.6, col: ["#c0392b", "#ecf0f1", "#2c3e50", "#2980b9", "#7f8c8d", "#f1c40f", "#16a085"][Math.floor(r() * 7)] });
+        cars.sort((a, b) => a.t - b.t).forEach((v) => {
+          const y = vy + (H - vy) * v.t, half = W * 0.09 + (W * 0.43) * v.t;
+          const x = vx + v.side * half * (0.15 + v.off * 0.7);
+          const sc = 0.15 + v.t, w = (v.moto ? 0.025 : 0.07) * W * sc, h = (v.moto ? 0.06 : 0.07) * H * sc;
+          g.fillStyle = "rgba(0,0,0,.3)"; g.fillRect(x - w / 2 + 3, y - h + 4, w, h);
+          g.fillStyle = v.col; g.beginPath(); g.roundRect ? g.roundRect(x - w / 2, y - h, w, h, w * 0.18) : g.rect(x - w / 2, y - h, w, h); g.fill();
+          g.fillStyle = "rgba(160,200,230,.8)"; if (!v.moto) g.fillRect(x - w * 0.36, y - h * 0.86, w * 0.72, h * 0.3);
+          else { g.fillStyle = "#222"; g.beginPath(); g.arc(x, y - h * 1.05, w * 0.42, 0, Math.PI * 2); g.fill(); }
+        });
+        g.fillStyle = "rgba(0,0,0,.55)"; g.fillRect(0, 0, W, 30);
+        g.fillStyle = "#fff"; g.font = "600 16px Consolas, monospace";
+        g.fillText(`${s.label.toUpperCase()}  ${new Date().toLocaleString("id-ID")}  [DEMO]`, 10, 21);
+        return c.toDataURL("image/jpeg", 0.85);
+      }
+      function startLive(onS, onD) {
+        setInterval(() => {
+          const names = Object.keys(L).filter((n) => n !== "Batu-Alun");
+          const n = names[Math.floor(Math.random() * names.length)];
+          const p = tick(n);
+          onS(L[n].slug, { ...p, location: n, device_id: L[n].device_id, ts: p.updated_at });
+          const d = devices[L[n].device_id]; d._seen = Date.now(); onD(L[n].slug, d.device_id, d);
+        }, 4000);
+      }
+      return { api: apiFn, frame, startLive };
+    })();
+
+    // =====================================================================
+    //  Start
+    // =====================================================================
+    function applyTheme(t) {
+      document.documentElement.dataset.theme = t;
+      localStorage.setItem("fic.theme", t);
+      if (S.hourly) renderChart();
+    }
+    $("#theme-btn").addEventListener("click", () => applyTheme(document.documentElement.dataset.theme === "dark" ? "light" : "dark"));
+    $("#loc-select").addEventListener("change", (e) => setSel(e.target.value));
+    $$("#nav a").forEach((a) => a.addEventListener("click", () => { if (window.location.hash === a.getAttribute("href")) showTab(a.dataset.tab); }));
+
+    (async function init() {
+      applyTheme(QS.get("theme") || localStorage.getItem("fic.theme") || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"));
+      if (DEMO) { $("#demo-banner").hidden = false; if (QS.get("token")) S.token = QS.get("token"); }
+      try { S.pub = await api("/api/public-config"); } catch { S.pub = null; }
+      startMqtt();
+      const first = window.location.hash.slice(1).split("/")[0];
+      if (!Views[first]) history.replaceState(null, "", "#dashboard");
+      await Promise.all([showTab(Views[first] ? first : "dashboard"), wait(700)]);
+      $("#splash").classList.add("out");
+      setTimeout(() => $("#splash").remove(), 500);
+      pollLoop();
+    })();
+    </script>
+  </body>
+</html>
