@@ -163,12 +163,11 @@ Ditargetkan untuk **Ubuntu 22.04 / 24.04 LTS** (Python 3.10–3.12). Spesifikasi
 
 ```bash
 sudo apt update && sudo apt upgrade -y
-sudo apt install -y git curl python3 python3-venv python3-pip \
-                    ffmpeg libgl1 libglib2.0-0
+sudo apt install -y git curl python3 python3-venv python3-pip ffmpeg
 ```
 
 - `ffmpeg` **wajib** untuk CCTV bertipe `hls` dan `mjpeg`.
-- `libgl1` dan `libglib2.0-0` dibutuhkan OpenCV (dependensi `ultralytics`) di server tanpa GUI.
+- Dengan OpenCV **headless** (langkah 3), `libgl1`/`libglib2.0-0` tidak diperlukan — server tanpa GUI tetap jalan.
 
 Cek:
 
@@ -201,6 +200,15 @@ Agar tidak mengunduh PyTorch versi GPU (±2 GB) di VPS tanpa GPU, pasang versi *
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
 pip install -r requirements.txt
 ```
+
+**Server tanpa layar/GUI? Ganti OpenCV ke versi headless (disarankan):**
+
+```bash
+pip uninstall opencv-python opencv-contrib-python -y   # pastikan hanya satu varian terpasang
+pip install opencv-python-headless
+```
+
+`opencv-python-headless` adalah OpenCV yang sama tanpa modul GUI (`cv2.imshow`, `waitKey`). Kode proyek ini tidak memakai GUI sama sekali — frame CCTV diambil `ffmpeg`, anotasi memakai Pillow — jadi tampilan dan hasil deteksinya identik, dan error `ImportError: libGL.so.1` tidak akan muncul. Jangan pasang `opencv-python` dan headless bersamaan (`cv2` bisa saling menimpa).
 
 Jika memakai GPU NVIDIA, lewati baris `torch` di atas dan langsung `pip install -r requirements.txt`.
 
@@ -602,7 +610,7 @@ Dokumentasi interaktif FastAPI: `http://IP_SERVER:8000/docs`.
 | `ffmpeg binary not found` | `sudo apt install -y ffmpeg`. Di systemd, path ffmpeg otomatis dicari (fallback `/usr/bin/ffmpeg`). |
 | `CCTV pull failed: ffmpeg failed to grab frame` | URL kedaluwarsa/butuh token, `cctv_stream_type` salah, atau IP server diblokir penyedia. Uji manual dengan perintah `ffmpeg` di atas; coba tipe lain (`hls` ↔ `mjpeg`). |
 | Timeout saat ambil frame | Naikkan `cctv_ffmpeg_timeout` (mis. 40). |
-| `ImportError: libGL.so.1` | `sudo apt install -y libgl1 libglib2.0-0`. |
+| `ImportError: libGL.so.1` | Server tanpa GUI: pakai `opencv-python-headless` (langkah 3), atau `sudo apt install -y libgl1 libglib2.0-0`. |
 | Instalasi pip lama / disk penuh | Pasang `torch` versi CPU dulu (langkah 3). |
 | `Killed` saat memuat model | RAM kurang; tambah swap: `sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile`. |
 | Dashboard kosong, data tidak muncul | Cek tabel `greenflow_logs` sudah dibuat dan `service_key` benar; lihat `journalctl -u flowincheck -f` (`failed to write to Supabase`). |
@@ -625,25 +633,55 @@ Dokumentasi interaktif FastAPI: `http://IP_SERVER:8000/docs`.
 
 ## Screenshot
 
-| Dashboard | Pantauan peta |
+Semua tangkapan diambil dari mode demo (`?demo=1`) di resolusi desktop (1440px) dan mobile (520px); berkas aslinya ada di folder [`screenshots/`](screenshots).
+
+### Desktop
+
+| Dashboard (terang) | Pantauan: peta + hasil deteksi ROI |
 |---|---|
 | ![Dashboard terang](screenshots/01-dashboard-terang.png) | ![Pantauan peta](screenshots/02-pantauan-peta-terang.png) |
 
-| Editor ROI (Admin) | Mode gelap |
+| Hasil deteksi ROI | Editor ROI + "Uji deteksi terakhir" |
 |---|---|
-| ![Editor ROI](screenshots/05-admin-editor-roi.png) | ![Dashboard gelap](screenshots/10-dashboard-gelap.png) |
+| ![Hasil deteksi ROI](screenshots/14-pantauan-hasil-roi.png) | ![Uji deteksi di editor ROI](screenshots/15-admin-roi-uji-deteksi.png) |
 
-| Riwayat | Mobile |
+| Riwayat | Mode gelap |
 |---|---|
-| ![Riwayat](screenshots/03-riwayat-terang.png) | ![Mobile](screenshots/13-mobile-pantauan.png) |
+| ![Riwayat](screenshots/03-riwayat-terang.png) | ![Dashboard gelap](screenshots/10-dashboard-gelap.png) |
 
-| Hasil deteksi ROI (Pantauan) | Uji deteksi di editor ROI |
+| Pantauan mode gelap | Editor ROI mode gelap |
 |---|---|
-| ![Hasil ROI](screenshots/14-pantauan-hasil-roi.png) | ![Uji deteksi](screenshots/15-admin-roi-uji-deteksi.png) |
+| ![Pantauan gelap](screenshots/16-pantauan-hasil-roi-gelap.png) | ![Editor ROI gelap](screenshots/12-admin-editor-roi-gelap.png) |
 
-| Unduhan JPG dari server | Unduhan PNG dari browser |
+### Hasil deteksi & unduhan
+
+| Unduhan JPG (render server) | Unduhan PNG (render browser) |
 |---|---|
 | ![JPG server](screenshots/17-contoh-jpg-server-roi.jpg) | ![PNG browser](screenshots/18-contoh-png-browser-roi.png) |
+
+### Mobile (520px)
+
+| Pantauan: peta + kamera | Hasil deteksi + tabel |
+|---|---|
+| ![Mobile pantauan](screenshots/13-mobile-pantauan.png) | ![Mobile hasil ROI](screenshots/19-mobile-hasil-roi.png) |
+
+| Panel admin: editor ROI + uji deteksi |
+|---|
+| ![Mobile uji deteksi](screenshots/20-mobile-admin-roi.png) |
+
+### Panel admin lainnya
+
+| Lokasi & koordinat | Editor ROI |
+|---|---|
+| ![Lokasi & koordinat](screenshots/04-admin-lokasi-koordinat.png) | ![Editor ROI](screenshots/05-admin-editor-roi.png) |
+
+| Ambang & program | Firmware kamera |
+|---|---|
+| ![Ambang & program](screenshots/06-admin-ambang-program.png) | ![Firmware kamera](screenshots/07-admin-firmware-kamera.png) |
+
+| Firmware lampu | Perangkat & MQTT |
+|---|---|
+| ![Firmware lampu](screenshots/08-admin-firmware-lampu.png) | ![Perangkat & MQTT](screenshots/09-admin-perangkat-mqtt.png) |
 
 ---
 
