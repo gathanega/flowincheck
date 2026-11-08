@@ -63,11 +63,13 @@
       .brand-name { font-weight: 800; font-size: 18px; letter-spacing: -.02em; }
       .brand-name b { color: var(--brand); }
       .brand-sub { font-size: 11.5px; color: var(--muted); margin-top: -3px; }
-      .nav { display: flex; gap: 4px; background: var(--card-2); border: 1px solid var(--line); padding: 4px; border-radius: 12px; }
-      .nav a { text-decoration: none; color: var(--muted); font-weight: 600; padding: 7px 14px; border-radius: 9px; display: flex; align-items: center; gap: 7px; transition: .15s; }
-      .nav a svg { width: 16px; height: 16px; }
+      .nav { display: flex; gap: 26px; align-self: stretch; margin-left: 12px; }
+      .nav a { position: relative; text-decoration: none; color: var(--brand); font-weight: 600; font-size: 16px; padding: 0 2px; display: flex; align-items: center; transition: color .15s; }
+      .nav a svg { display: none; }
+      .nav a::after { content: ""; position: absolute; left: 0; right: 0; bottom: 14px; height: 4px; border-radius: 4px; background: var(--brand); transform: scaleX(0); transition: transform .2s; }
       .nav a:hover { color: var(--text); }
-      .nav a.active { background: var(--card); color: var(--brand); box-shadow: var(--shadow); }
+      .nav a.active { color: var(--text); }
+      .nav a.active::after { transform: scaleX(1); }
       .header-tools { margin-left: auto; display: flex; align-items: center; gap: 8px; }
       .conn { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--muted); padding: 5px 10px; border-radius: 999px; border: 1px solid var(--line); background: var(--card); white-space: nowrap; }
       .conn i { width: 8px; height: 8px; border-radius: 50%; background: #9ca3af; }
@@ -217,20 +219,7 @@
       .stage .badge.r { left: auto; right: 10px; }
       .toolbar { display: flex; gap: 6px; flex-wrap: wrap; margin: 12px 0; }
 
-      /* ---------- admin ---------- */
-      .admin-layout { display: grid; grid-template-columns: 230px 1fr; gap: 16px; align-items: start; }
-      .side { position: sticky; top: calc(var(--header-h) + 16px); display: flex; flex-direction: column; gap: 4px; padding: 10px; }
-      .side button { text-align: left; border: 0; background: none; padding: 9px 12px; border-radius: 10px; font-weight: 600; color: var(--muted); cursor: pointer; display: flex; align-items: center; gap: 9px; }
-      .side button svg { width: 17px; height: 17px; flex: none; }
-      .side button:hover { color: var(--text); background: var(--card-2); }
-      .side button.active { background: var(--brand-soft); color: var(--brand); }
-      .side hr { border: 0; border-top: 1px solid var(--line); margin: 6px 0; width: 100%; }
-      .login { max-width: 420px; margin: 40px auto; text-align: center; }
-      .login img { width: 64px; }
-      .sync { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; }
-      .kv { display: grid; grid-template-columns: 140px 1fr; gap: 6px 12px; font-size: 13px; }
-      .kv dt { color: var(--muted); }
-      .kv dd { margin: 0; font-weight: 600; word-break: break-all; }
+      /* ---------- komponen bersama ---------- */
       .sw { display: inline-block; width: 11px; height: 11px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; border: 2px solid currentColor; }
       .det-table { max-height: 360px; overflow: auto; }
       .det-table td, .det-table th { padding: 7px 9px; font-size: 12.5px; }
@@ -238,9 +227,6 @@
       .det-big { display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 12px; }
       .det-big b { display: block; font-size: 30px; line-height: 1.1; font-variant-numeric: tabular-nums; }
       .det-big span { font-size: 12px; color: var(--muted); }
-      .fw-head { display: flex; gap: 14px; align-items: center; padding: 12px; border-radius: 12px; background: var(--card-2); border: 1px solid var(--line); margin-bottom: 14px; flex-wrap: wrap; }
-      .fw-chip { width: 46px; height: 46px; border-radius: 12px; display: grid; place-items: center; background: var(--brand-soft); color: var(--brand); flex: none; }
-      .fw-chip svg { width: 26px; height: 26px; }
 
       /* ---------- toast & footer ---------- */
       #toasts { position: fixed; right: 18px; bottom: 18px; z-index: 3000; display: flex; flex-direction: column; gap: 8px; max-width: min(380px, calc(100vw - 36px)); }
@@ -253,22 +239,19 @@
 
       @media (max-width: 1080px) {
         .grid-4 { grid-template-columns: repeat(2, 1fr); }
-        .grid-2-1, .grid-1-2, .admin-layout { grid-template-columns: 1fr; }
-        .side { position: static; flex-direction: row; overflow-x: auto; }
-        .side hr { display: none; }
-        .side button { white-space: nowrap; }
-        .brand-sub { display: none; }
+        .grid-2-1, .grid-1-2 { grid-template-columns: 1fr; }
+              .brand-sub { display: none; }
         :root { --header-h: 112px; }
         .header-inner { flex-wrap: wrap; height: auto; padding: 10px 16px; gap: 10px; }
-        .nav { order: 3; width: 100%; justify-content: space-between; }
-        .nav a { flex: 1; justify-content: center; }
+        .nav { order: 3; width: 100%; margin-left: 0; justify-content: space-around; gap: 8px; }
+        .nav a { flex: 1; justify-content: center; padding: 10px 2px 14px; }
+        .nav a::after { bottom: 4px; }
         #loc-select { max-width: 200px; }
       }
       @media (max-width: 760px) {
         .header-inner { padding: 10px 14px; }
-        .nav a { padding: 7px 8px; font-size: 12.5px; }
-        #loc-select { max-width: 130px; }
-        .nav a svg { display: none; }
+        .nav a { font-size: 14px; }
+          #loc-select { max-width: 130px; }
         .conn span { display: none; }
         .grid-3, .grid-2, .grid-4 { grid-template-columns: 1fr; }
         .program { flex-direction: column; align-items: stretch; }
@@ -300,7 +283,6 @@
           <a href="#dashboard" data-tab="dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>Dashboard</a>
           <a href="#pantauan" data-tab="pantauan"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>Pantauan</a>
           <a href="#riwayat" data-tab="riwayat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>Riwayat</a>
-          <a href="#admin" data-tab="admin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/></svg>Admin</a>
         </nav>
         <div class="header-tools">
           <select id="loc-select" class="select" aria-label="Pilih lokasi"><option value="">Semua lokasi</option></select>
@@ -508,47 +490,6 @@
           </div>
         </section>
       </section>
-
-      <!-- =============================== ADMIN =============================== -->
-      <section class="view" data-view="admin" hidden>
-        <div class="card login" id="adm-login" hidden>
-          <img src="pictures/Color_Logo_Png.png" alt="" onerror="this.style.display='none'" />
-          <h1 class="page-title" style="margin-top: 10px">Masuk admin</h1>
-          <p class="page-sub">Masukkan <span class="mono">admin_token</span> dari config.yaml</p>
-          <form id="login-form" style="display: flex; flex-direction: column; gap: 10px; margin-top: 18px; text-align: left">
-            <input class="input" type="password" id="login-token" placeholder="Token admin" autocomplete="current-password" required />
-            <label class="row small muted"><input type="checkbox" id="login-remember" /> Ingat di perangkat ini</label>
-            <button class="btn btn-solid" type="submit" id="login-btn">Masuk</button>
-            <div class="stat-note" id="login-msg"></div>
-          </form>
-        </div>
-
-        <div id="adm-panel" hidden>
-          <div class="page-head">
-            <div>
-              <h1 class="page-title">Pengaturan admin</h1>
-              <p class="page-sub">Perubahan disimpan di server (runtime_state.json) dan dikirim ke perangkat lewat MQTT/HTTP</p>
-            </div>
-            <div class="row">
-              <span class="small muted">Lokasi</span>
-              <select class="select" id="adm-loc"></select>
-              <button class="btn btn-danger" id="logout-btn" type="button">Keluar</button>
-            </div>
-          </div>
-          <div class="admin-layout">
-            <nav class="card side" id="adm-side">
-              <button type="button" data-sub="lokasi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>Lokasi &amp; koordinat</button>
-              <button type="button" data-sub="roi"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 18L8 5l9 3 3 10z"/><circle cx="4" cy="18" r="1.6" fill="currentColor"/><circle cx="8" cy="5" r="1.6" fill="currentColor"/><circle cx="17" cy="8" r="1.6" fill="currentColor"/><circle cx="20" cy="18" r="1.6" fill="currentColor"/></svg>ROI jalur</button>
-              <button type="button" data-sub="lalin"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="2" width="8" height="20" rx="3"/><circle cx="12" cy="7" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="17" r="1.6"/></svg>Ambang &amp; program</button>
-              <hr />
-              <button type="button" data-sub="kamera"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>Firmware kamera</button>
-              <button type="button" data-sub="lampu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="5" y="5" width="14" height="14" rx="2"/><path d="M9 1v4M15 1v4M9 19v4M15 19v4M1 9h4M1 15h4M19 9h4M19 15h4"/></svg>Firmware lampu</button>
-              <button type="button" data-sub="perangkat"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0"/><circle cx="12" cy="19.5" r="1.2" fill="currentColor"/></svg>Perangkat &amp; MQTT</button>
-            </nav>
-            <div id="adm-content"></div>
-          </div>
-        </div>
-      </section>
     </main>
 
     <footer class="site-footer">
@@ -557,186 +498,6 @@
     </footer>
     <div id="toasts"></div>
 
-    <!-- ===== template panel admin ===== -->
-    <template id="tpl-lokasi">
-      <section class="card">
-        <div class="card-head"><div><h2 class="card-title">Titik koordinat lokasi</h2><div class="stat-note">Klik peta atau geser pin untuk memindahkan titik. Titik ini dipakai di tab Pantauan.</div></div></div>
-        <div class="grid grid-2-1">
-          <div id="adm-map" class="map sm"></div>
-          <form id="f-lokasi" style="display: flex; flex-direction: column; gap: 12px">
-            <label class="field"><span>Nama tampilan</span><input class="input" name="label" maxlength="80" placeholder="mis. Simpang Kayutangan" /></label>
-            <label class="field"><span>Latitude</span><input class="input" name="lat" inputmode="decimal" placeholder="-7.979700" /></label>
-            <label class="field"><span>Longitude</span><input class="input" name="lng" inputmode="decimal" placeholder="112.630400" /></label>
-            <label class="field"><span>Tempel koordinat (Google Maps)</span><input class="input" id="paste-coord" placeholder="-7.9797, 112.6304" /><small>Format "lat, lng" langsung terisi ke dua kolom di atas</small></label>
-            <div class="row">
-              <button class="btn btn-sm" type="button" id="geo-btn">Pakai lokasi saya</button>
-              <button class="btn btn-sm btn-danger" type="button" id="clear-coord">Hapus titik</button>
-            </div>
-            <div class="form-actions" style="margin-top: auto"><button class="btn btn-solid" type="submit">Simpan lokasi</button></div>
-          </form>
-        </div>
-      </section>
-    </template>
-
-    <template id="tpl-roi">
-      <section class="card">
-        <div class="card-head">
-          <div><h2 class="card-title">Editor ROI (jalur yang dihitung)</h2><div class="stat-note">Kendaraan dihitung kalau titik tengah kotaknya ada di dalam poligon. Koordinat disimpan 0–1 (tidak tergantung resolusi kamera).</div></div>
-          <span class="pill" id="roi-state">–</span>
-        </div>
-        <div class="grid grid-2-1">
-          <div>
-            <div class="stage edit" id="roi-stage"><div class="ph" id="roi-ph">Memuat frame…</div><img id="roi-img" alt="" hidden /><canvas id="roi-canvas"></canvas><span class="badge" id="roi-pos">x –, y –</span><span class="badge r" id="roi-count">0 titik</span></div>
-            <div class="toolbar">
-              <button class="btn btn-sm" type="button" data-roi="undo" title="Ctrl+Z">↶ Urungkan</button>
-              <button class="btn btn-sm" type="button" data-roi="del" title="Delete">Hapus titik terpilih</button>
-              <button class="btn btn-sm" type="button" data-roi="clear">Kosongkan</button>
-              <button class="btn btn-sm" type="button" data-roi="reset">Kembalikan tersimpan</button>
-              <button class="btn btn-sm" type="button" data-roi="frame">Ambil frame baru</button>
-              <label class="switch" style="padding: 4px 10px" title="Pakai frame & kotak deteksi terakhir untuk melihat berapa kendaraan yang masuk ROI ini"><span class="small">Uji deteksi terakhir</span><input type="checkbox" id="roi-det" /></label>
-              <span class="spacer"></span>
-              <button class="btn btn-sm" type="button" data-roi="preset-right">Preset: kanan</button>
-              <button class="btn btn-sm" type="button" data-roi="preset-left">Preset: kiri</button>
-              <button class="btn btn-sm" type="button" data-roi="preset-full">Preset: seluruh</button>
-            </div>
-            <div class="hint" id="roi-det-hint" hidden></div>
-            <div class="hint"><b>Klik</b> area kosong = tambah titik · <b>klik garis</b> = sisipkan titik · <b>seret</b> titik = pindah · <b>klik kanan / dobel klik</b> titik = hapus · <b>Delete</b> = hapus titik terpilih · <b>Ctrl+Z</b> = urungkan</div>
-          </div>
-          <form id="f-roi" style="display: flex; flex-direction: column; gap: 12px">
-            <label class="field"><span>Nama jalur</span><input class="input" name="roi_label" maxlength="80" placeholder="mis. jalur kanan (arah timur)" /></label>
-            <label class="field"><span>Titik (JSON, bisa diedit langsung)</span><textarea class="input mono" id="roi-json" rows="8" spellcheck="false"></textarea><small id="roi-json-msg">3–40 titik, nilai 0–1</small></label>
-            <div class="row"><button class="btn btn-sm" type="button" data-roi="copy-yaml">Salin sebagai YAML</button><button class="btn btn-sm" type="button" data-roi="preview" id="roi-preview-btn">Preview server</button></div>
-            <div class="form-actions" style="margin-top: auto">
-              <button class="btn btn-solid" type="submit">Simpan ROI</button>
-              <button class="btn btn-danger" type="button" data-roi="disable">Matikan ROI</button>
-            </div>
-          </form>
-        </div>
-      </section>
-    </template>
-
-    <template id="tpl-lalin">
-      <section class="card">
-        <div class="card-head"><div><h2 class="card-title">Ambang kepadatan</h2><div class="stat-note">Jumlah kendaraan di jalur ROI → status. Dipakai mulai frame berikutnya.</div></div></div>
-        <form id="f-thresholds">
-          <div class="form-grid">
-            <label class="field"><span>LANCAR jika kurang dari</span><input class="input" type="number" min="1" max="500" name="density_low" data-type="int" /><small>kendaraan</small></label>
-            <label class="field"><span>MACET jika minimal</span><input class="input" type="number" min="1" max="1000" name="density_high" data-type="int" /><small>di antaranya = PADAT</small></label>
-            <label class="field"><span>Kalibrasi maks.</span><input class="input" type="number" min="1" max="1000" name="calibration_max_count" data-type="int" /><small>kapasitas jalur (untuk skala)</small></label>
-          </div>
-          <div class="hint" id="thr-preview" style="margin-top: 12px"></div>
-          <div class="form-actions"><button class="btn btn-solid" type="submit">Simpan ambang</button></div>
-        </form>
-      </section>
-      <section class="card" style="margin-top: 16px">
-        <div class="card-head"><div><h2 class="card-title">Program lampu</h2><div class="stat-note">Durasi (detik) yang dikirim ke ESP32-C6. Kuning minimal 3 detik.</div></div></div>
-        <form id="f-program">
-          <div class="grid grid-2">
-            <fieldset><legend><span class="pill pill-lancar">LANCAR</span> Program normal</legend>
-              <div class="form-grid">
-                <label class="field"><span>Merah</span><input class="input" type="number" min="1" max="3600" name="baseline.red" data-type="int" /><small data-mmss="baseline.red"></small></label>
-                <label class="field"><span>Kuning</span><input class="input" type="number" min="3" max="600" name="baseline.yellow" data-type="int" /><small data-mmss="baseline.yellow"></small></label>
-                <label class="field"><span>Hijau</span><input class="input" type="number" min="1" max="3600" name="baseline.green" data-type="int" /><small data-mmss="baseline.green"></small></label>
-              </div>
-            </fieldset>
-            <fieldset><legend><span class="pill pill-padat">PADAT / MACET</span> Program padat</legend>
-              <div class="form-grid">
-                <label class="field"><span>Merah</span><input class="input" type="number" min="1" max="3600" name="congested.red" data-type="int" /><small data-mmss="congested.red"></small></label>
-                <label class="field"><span>Kuning</span><input class="input" type="number" min="3" max="600" name="congested.yellow" data-type="int" /><small data-mmss="congested.yellow"></small></label>
-                <label class="field"><span>Hijau</span><input class="input" type="number" min="1" max="3600" name="congested.green" data-type="int" /><small data-mmss="congested.green"></small></label>
-              </div>
-            </fieldset>
-          </div>
-          <div class="form-actions"><button class="btn btn-solid" type="submit">Simpan program</button><span class="stat-note">Lampu memakai program baru di awal siklus berikutnya setelah frame berikutnya diproses.</span></div>
-        </form>
-      </section>
-    </template>
-
-    <template id="tpl-kamera">
-      <section class="card">
-        <div class="fw-head">
-          <div class="fw-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></div>
-          <div><div style="font-weight: 800">ESP32-S3 · kamera OV3660</div><div class="stat-note">Topik: <span class="mono" data-topic="config"></span></div></div>
-          <span class="spacer"></span><div id="fw-cam-devs" class="row"></div>
-        </div>
-        <form id="f-camera">
-          <div class="form-grid">
-            <label class="field"><span>Resolusi (framesize)</span><select class="select" name="framesize" id="opt-framesize"></select><small>Tanpa PSRAM dibatasi maksimal QVGA</small></label>
-            <label class="field"><span>Interval kirim (detik)</span><input class="input" type="number" min="1" max="600" name="capture_interval_s" data-type="int" /><small>1–600</small></label>
-            <label class="field"><span>Kualitas JPEG</span><div class="range-wrap"><input type="range" min="4" max="63" name="jpeg_quality" data-type="int" /><output></output></div><small>4 = paling tajam · 63 = file terkecil</small></label>
-            <label class="field"><span>Kecerahan</span><div class="range-wrap"><input type="range" min="-2" max="2" name="brightness" data-type="int" /><output></output></div></label>
-            <label class="field"><span>Kontras</span><div class="range-wrap"><input type="range" min="-2" max="2" name="contrast" data-type="int" /><output></output></div><small>butuh firmware ≥ 2.1.0</small></label>
-            <label class="field"><span>Saturasi</span><div class="range-wrap"><input type="range" min="-2" max="2" name="saturation" data-type="int" /><output></output></div></label>
-            <label class="switch"><span>Balik vertikal (vflip)</span><input type="checkbox" name="vflip" /></label>
-            <label class="switch"><span>Cermin horizontal (hmirror)</span><input type="checkbox" name="hmirror" /></label>
-          </div>
-          <div class="hint" id="cam-estimate" style="margin-top: 12px"></div>
-          <div class="form-actions">
-            <button class="btn btn-solid" type="submit">Simpan &amp; kirim ke kamera</button>
-            <button class="btn" type="button" data-cmd="capture_now" data-target="camera">Ambil foto sekarang</button>
-            <span class="stat-note">Tidak bisa diubah dari web (perlu flash ulang): WiFi, alamat server, kredensial MQTT, pin kamera.</span>
-          </div>
-        </form>
-      </section>
-    </template>
-
-    <template id="tpl-lampu">
-      <section class="card">
-        <div class="fw-head">
-          <div class="fw-chip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="8" y="2" width="8" height="20" rx="3"/><circle cx="12" cy="7" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="17" r="1.6"/></svg></div>
-          <div><div style="font-weight: 800">ESP32-C6 · pengendali lampu</div><div class="stat-note">Topik: <span class="mono" data-topic="config"></span></div></div>
-          <span class="spacer"></span><div id="fw-light-devs" class="row"></div>
-        </div>
-        <form id="f-light">
-          <div class="form-grid">
-            <label class="field"><span>Interval polling HTTP (detik)</span><input class="input" type="number" min="5" max="300" name="poll_interval_s" data-type="int" /><small>5–300 · cadangan kalau MQTT mati</small></label>
-            <label class="field"><span>Mode saat server hilang</span><select class="select" name="offline_mode"><option value="fallback">Program fallback</option><option value="blink_yellow">Kuning berkedip</option><option value="all_red">Merah terus</option></select></label>
-            <label class="field"><span>Dianggap offline setelah (detik)</span><input class="input" type="number" min="10" max="3600" name="offline_after_s" data-type="int" /><small>10–3600</small></label>
-          </div>
-          <fieldset style="margin-top: 14px"><legend>Program fallback (detik)</legend>
-            <div class="form-grid">
-              <label class="field"><span>Merah</span><input class="input" type="number" min="1" max="3600" name="fallback_red" data-type="int" /><small data-mmss="fallback_red"></small></label>
-              <label class="field"><span>Kuning</span><input class="input" type="number" min="3" max="600" name="fallback_yellow" data-type="int" /><small data-mmss="fallback_yellow"></small></label>
-              <label class="field"><span>Hijau</span><input class="input" type="number" min="1" max="3600" name="fallback_green" data-type="int" /><small data-mmss="fallback_green"></small></label>
-            </div>
-          </fieldset>
-          <div class="form-actions">
-            <button class="btn btn-solid" type="submit">Simpan &amp; kirim ke lampu</button>
-            <span class="stat-note">Juga dipakai server sebagai program awal sebelum ada frame yang diproses.</span>
-          </div>
-        </form>
-      </section>
-    </template>
-
-    <template id="tpl-perangkat">
-      <section class="card">
-        <div class="card-head">
-          <div><h2 class="card-title">Perangkat di lokasi ini</h2><div class="stat-note">Status dari MQTT (retained + LWT) dan dari permintaan HTTP perangkat</div></div>
-          <div class="row">
-            <button class="btn btn-sm" type="button" data-cmd="resend_config" data-target="all">Kirim ulang konfigurasi</button>
-            <button class="btn btn-sm" type="button" data-cmd="capture_now" data-target="camera">Ambil foto</button>
-            <button class="btn btn-sm btn-danger" type="button" data-cmd="reboot" data-target="camera">Reboot kamera</button>
-            <button class="btn btn-sm btn-danger" type="button" data-cmd="reboot" data-target="light">Reboot lampu</button>
-          </div>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Perangkat</th><th>Peran</th><th>Status</th><th>Terakhir</th><th>RSSI</th><th>Baterai</th><th>Firmware</th><th>Konfigurasi</th></tr></thead>
-            <tbody id="dev-table"></tbody>
-          </table>
-        </div>
-      </section>
-      <section class="grid grid-2" style="margin-top: 16px">
-        <article class="card">
-          <h2 class="card-title" style="margin-bottom: 12px">Topik MQTT</h2>
-          <dl class="kv" id="topic-kv"></dl>
-        </article>
-        <article class="card">
-          <h2 class="card-title" style="margin-bottom: 12px">Sinkronisasi</h2>
-          <dl class="kv" id="sync-kv"></dl>
-        </article>
-      </section>
-    </template>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.15/dist/hls.min.js"></script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
@@ -752,8 +513,7 @@
       (window.location.protocol === "file:" ? "http://localhost:8000" : "")).replace(/\/+$/, "");
     const DEFAULT_CENTER = [-7.9797, 112.6304];     // Malang
     const CLASS_LABEL = { car: "Mobil", motorcycle: "Motor", bus: "Bus", truck: "Truk" };
-    const TAB_TITLE = { dashboard: "Dashboard", pantauan: "Pantauan", riwayat: "Riwayat", admin: "Admin" };
-    const SUB_TITLE = { lokasi: "Lokasi", roi: "Editor ROI", lalin: "Ambang & program", kamera: "Firmware kamera", lampu: "Firmware lampu", perangkat: "Perangkat" };
+    const TAB_TITLE = { dashboard: "Dashboard", pantauan: "Pantauan", riwayat: "Riwayat" };
 
     const S = {
       pub: null, locations: [], bySlug: {}, byName: {}, sel: localStorage.getItem("fic.sel") || "",
@@ -866,7 +626,6 @@
         if (Array.isArray(msg)) msg = msg.map((m) => m.msg).join(", ");
         const err = new Error(msg || `HTTP ${res.status}`);
         err.status = res.status;
-        if (auth && res.status === 401) { logout(true); }
         throw err;
       }
       return data;
@@ -925,7 +684,6 @@
       S.sel = loc || "";
       localStorage.setItem("fic.sel", S.sel);
       $("#loc-select").value = S.sel;
-      if (S.sel && S.tab === "admin" && S.token && S.admLoc !== S.sel) { S.admLoc = S.sel; }
       if (reload && S.tab) showTab(S.tab, { reason: "lokasi" });
     }
 
@@ -1391,7 +1149,7 @@
         <button type="button" class="loc-item ${l.location === Mon.loc ? "sel" : ""}" data-pick="${esc(l.location)}">
           <div class="t"><span>${esc(l.label || l.location)}</span>${pill(l.traffic_status || "–")}</div>
           <div class="m"><span>${l.mode === "cctv" ? "CCTV" : "ESP32-S3"}</span><span>${l.vehicle_count ?? "–"} kendaraan</span><span>${l.has_roi ? "ROI ✓" : "tanpa ROI"}</span></div>
-          <div class="m">${l.lat != null ? `<span class="mono">📍 ${fmtNum(l.lat)}, ${fmtNum(l.lng)}</span>` : `<span class="warn">Belum ada titik koordinat${S.token ? " — atur di Admin" : ""}</span>`}</div>
+          <div class="m">${l.lat != null ? `<span class="mono">📍 ${fmtNum(l.lat)}, ${fmtNum(l.lng)}</span>` : `<span class="warn">Belum ada titik koordinat</span>`}</div>
         </button>`).join("") : `<div class="stat-note">Belum ada lokasi</div>`;
       $$("#mon-list [data-pick]").forEach((b) => b.addEventListener("click", () => selectMon(b.dataset.pick)));
       renderMonDetail();
@@ -1628,468 +1386,7 @@
       try { await navigator.clipboard.writeText(t); toast("Disalin: " + (t.length > 60 ? t.slice(0, 60) + "…" : t)); }
       catch { prompt("Salin manual:", t); }
     }
-    // =====================================================================
-    //  ADMIN
-    // =====================================================================
-    const Adm = { map: null, marker: null };
-
-    Views.admin = {
-      async load() {
-        if (!S.locations.length) await refreshLocations();
-        if (!S.token) { showLogin(); return; }
-        $("#adm-login").hidden = true; $("#adm-panel").hidden = false;
-        if (S.sel) S.admLoc = S.sel;
-        if (!S.byName[S.admLoc]) S.admLoc = (S.locations[0] || {}).location || "";
-        $("#adm-loc").innerHTML = S.locations.map((l) => `<option value="${esc(l.location)}">${esc(l.label || l.location)}</option>`).join("");
-        $("#adm-loc").value = S.admLoc;
-        if (!S.admLoc) { $("#adm-content").innerHTML = '<div class="card">Belum ada lokasi di config.yaml</div>'; return; }
-        await Promise.all([loadSettings(), refreshDevices().catch(() => {})]);
-        if (S.token) await mountSub(S.sub);
-      },
-      shown() { subShown(); },
-      async poll() {
-        if (!S.token || !S.settings) return;
-        if (["perangkat", "kamera", "lampu"].includes(S.sub)) { await refreshDevices(); this.live(); }
-      },
-      live() {
-        if (S.sub === "perangkat") renderDevices();
-        if (S.sub === "kamera" || S.sub === "lampu") renderFwDevs();
-      },
-    };
-
-    function showLogin(msg) {
-      $("#adm-panel").hidden = true; $("#adm-login").hidden = false;
-      $("#login-msg").textContent = msg || (S.pub && S.pub.admin_enabled === false ? "Fitur admin dimatikan: isi admin_token di config.yaml lalu restart server." : "");
-      setTimeout(() => $("#login-token").focus(), 50);
-    }
-    $("#login-form").addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const btn = $("#login-btn");
-      btn.disabled = true; btn.innerHTML = '<span class="spinner sm"></span> Memeriksa…';
-      S.token = $("#login-token").value.trim();
-      try {
-        await api("/api/admin/login", { method: "POST", auth: true });
-        ($("#login-remember").checked ? localStorage : sessionStorage).setItem("fic.token", S.token);
-        $("#login-token").value = "";
-        toast("Berhasil masuk sebagai admin");
-        showTab("admin");
-      } catch (err) {
-        S.token = "";
-        $("#login-msg").textContent = err.status === 401 ? "Token salah." : err.message;
-      } finally { btn.disabled = false; btn.textContent = "Masuk"; }
-    });
-    function logout(expired) {
-      S.token = ""; S.settings = null;
-      sessionStorage.removeItem("fic.token"); localStorage.removeItem("fic.token");
-      if (expired) toast("Sesi admin berakhir / token salah, silakan masuk lagi", "warn");
-      if (S.tab === "admin") showLogin();
-    }
-    $("#logout-btn").addEventListener("click", () => { logout(false); toast("Keluar dari admin"); });
-    $("#adm-loc").addEventListener("change", (e) => { S.admLoc = e.target.value; setSel(e.target.value, false); showTab("admin", { reason: "lokasi" }); });
-    $("#adm-side").addEventListener("click", (e) => {
-      const b = e.target.closest("[data-sub]");
-      if (!b || b.dataset.sub === S.sub) return;
-      withLoader(`Memuat ${SUB_TITLE[b.dataset.sub]}…`, () => mountSub(b.dataset.sub), 350).then(subShown);
-    });
-
-    async function loadSettings() {
-      S.settings = await api(`/api/admin/settings?location=${enc(S.admLoc)}`, { auth: true });
-      return S.settings;
-    }
-
-    async function mountSub(name) {
-      if (!SUB_TITLE[name]) name = "lokasi";
-      S.sub = name; localStorage.setItem("fic.sub", name);
-      $$("#adm-side [data-sub]").forEach((b) => b.classList.toggle("active", b.dataset.sub === name));
-      if (Adm.map) { Adm.map.remove(); Adm.map = null; Adm.marker = null; }
-      const box = $("#adm-content");
-      box.innerHTML = "";
-      box.appendChild($(`#tpl-${name}`).content.cloneNode(true));
-      $$("[data-topic]", box).forEach((el) => (el.textContent = (S.settings.topics || {})[el.dataset.topic] || "–"));
-      $$("[data-cmd]", box).forEach((b) => b.addEventListener("click", () => sendCmd(b.dataset.cmd, b.dataset.target, b)));
-      $$("form", box).forEach((f) => f.addEventListener("input", () => syncOutputs(f)));
-      await ({ lokasi: initLokasi, roi: initRoi, lalin: initLalin, kamera: initKamera, lampu: initLampu, perangkat: initPerangkat }[name])();
-    }
-    function subShown() {
-      if (Adm.map) { Adm.map.invalidateSize(); if (Adm.marker) Adm.map.setView(Adm.marker.getLatLng()); }
-      if (S.sub === "roi") renderRoi();
-    }
-
-    // ---------- form util ----------
-    function getPath(o, path) { return path.split(".").reduce((a, k) => (a == null ? a : a[k]), o); }
-    function fillForm(form, obj) {
-      $$("[name]", form).forEach((el) => {
-        const v = getPath(obj, el.name);
-        if (v === undefined) return;
-        if (el.type === "checkbox") el.checked = !!v; else el.value = v ?? "";
-      });
-      syncOutputs(form);
-    }
-    function readForm(form) {
-      const out = {};
-      $$("[name]", form).forEach((el) => {
-        let v = el.type === "checkbox" ? el.checked : el.value.trim();
-        if (el.dataset.type === "int") v = v === "" ? null : Number(v);
-        const ks = el.name.split(".");
-        let o = out;
-        ks.slice(0, -1).forEach((k) => (o = o[k] = o[k] || {}));
-        o[ks[ks.length - 1]] = v;
-      });
-      return out;
-    }
-    function syncOutputs(form) {
-      $$(".range-wrap", form).forEach((w) => { const r = $("input", w); $("output", w).textContent = (+r.value > 0 && r.min < 0 ? "+" : "") + r.value; });
-      $$("[data-mmss]", form).forEach((s) => { const i = $(`[name="${s.dataset.mmss}"]`, form); s.textContent = i && i.value !== "" ? `= ${mmss(i.value)} (mm:dd)` : ""; });
-      if (form.id === "f-thresholds") {
-        const d = readForm(form);
-        $("#thr-preview").innerHTML = d.density_high > d.density_low
-          ? `${pill("LANCAR")} 0–${d.density_low - 1} &nbsp; ${pill("PADAT")} ${d.density_low}–${d.density_high - 1} &nbsp; ${pill("MACET")} ≥ ${d.density_high} kendaraan`
-          : `<span class="warn">Batas MACET harus lebih besar dari batas LANCAR</span>`;
-      }
-      if (form.id === "f-camera") camEstimate(form);
-    }
-
-    async function saveSection(section, data, form) {
-      const btn = form && $('button[type="submit"]', form);
-      const label = btn && btn.innerHTML;
-      if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner sm"></span> Menyimpan…'; }
-      try {
-        const res = await api("/api/admin/settings", { method: "PUT", auth: true, body: { location: S.admLoc, section, data } });
-        S.settings = res.settings;
-        if (section === "camera" || section === "light") {
-          const v = res.settings.config_version;
-          if (res.published) toast(`Tersimpan (konfigurasi v${v}) dan terkirim ke perangkat via MQTT`);
-          else toast(`Tersimpan (v${v}). MQTT server tidak terhubung — perangkat mengambil lewat HTTP (kamera ±60 dtk, lampu tiap ${res.settings.light.poll_interval_s} dtk)`, "warn", 7000);
-        } else toast("Tersimpan, dipakai mulai frame berikutnya");
-        refreshLocations().catch(() => {});
-        return res;
-      } catch (e) { toast("Gagal menyimpan: " + e.message, "err", 6000); throw e; }
-      finally { if (btn) { btn.disabled = false; btn.innerHTML = label; } }
-    }
-
-    async function sendCmd(cmd, target, btn) {
-      const names = { capture_now: "ambil foto sekarang", reboot: `reboot ${target === "light" ? "lampu" : target === "camera" ? "kamera" : "semua perangkat"}`, resend_config: "kirim ulang konfigurasi" };
-      if (cmd === "reboot" && !confirm(`Yakin ${names[cmd]} di ${S.admLoc}?`)) return;
-      if (btn) btn.disabled = true;
-      try {
-        const r = await api("/api/admin/command", { method: "POST", auth: true, body: { location: S.admLoc, target, cmd } });
-        toast(`Perintah "${names[cmd]}" terkirim${cmd === "resend_config" ? ` (v${r.version})` : ""}`);
-        if (cmd === "resend_config") { await loadSettings(); Views.admin.live(); if (S.sub === "perangkat") initPerangkat(); }
-      } catch (e) { toast("Gagal: " + e.message, "err", 6000); }
-      finally { if (btn) btn.disabled = false; }
-    }
-
-    // ---------- Lokasi & koordinat ----------
-    function initLokasi() {
-      const f = $("#f-lokasi");
-      const s = S.settings;
-      fillForm(f, { label: s.label || "", lat: fmtNum(s.lat), lng: fmtNum(s.lng) });
-      if (window.L) {
-        const has = s.lat != null && s.lng != null;
-        Adm.map = L.map("adm-map").setView(has ? [s.lat, s.lng] : DEFAULT_CENTER, has ? 17 : 13);
-        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(Adm.map);
-        S.locations.forEach((l) => {
-          if (l.location === S.admLoc || l.lat == null) return;
-          L.circleMarker([l.lat, l.lng], { radius: 6, color: "#6b7280", weight: 2, fillOpacity: 0.5 }).bindTooltip(esc(l.label || l.location)).addTo(Adm.map);
-        });
-        if (has) placeMarker(s.lat, s.lng);
-        Adm.map.on("click", (e) => setCoord(e.latlng.lat, e.latlng.lng));
-      } else $("#adm-map").innerHTML = '<div class="ph">Peta gagal dimuat, isi lat/lng manual</div>';
-
-      const latI = $('[name="lat"]', f), lngI = $('[name="lng"]', f);
-      const fromInputs = () => { const a = parseFloat(latI.value), b = parseFloat(lngI.value); if (isFinite(a) && isFinite(b) && Math.abs(a) <= 90 && Math.abs(b) <= 180) placeMarker(a, b, true); };
-      latI.addEventListener("change", fromInputs); lngI.addEventListener("change", fromInputs);
-      $("#paste-coord").addEventListener("input", (e) => {
-        const m = e.target.value.match(/(-?\d{1,2}(?:\.\d+)?)\s*[,;\s]\s*(-?\d{1,3}(?:\.\d+)?)/);
-        if (m) { setCoord(+m[1], +m[2]); e.target.value = ""; }
-      });
-      $("#geo-btn").addEventListener("click", () => {
-        if (!navigator.geolocation) return toast("Browser tidak mendukung geolokasi", "err");
-        toast("Mengambil lokasi perangkat…");
-        navigator.geolocation.getCurrentPosition((p) => setCoord(p.coords.latitude, p.coords.longitude), (err) => toast("Gagal ambil lokasi: " + err.message, "err"), { enableHighAccuracy: true, timeout: 15000 });
-      });
-      $("#clear-coord").addEventListener("click", () => { latI.value = lngI.value = ""; if (Adm.marker) { Adm.marker.remove(); Adm.marker = null; } });
-      f.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        const d = readForm(f);
-        await saveSection("location", { label: d.label, lat: d.lat === "" ? null : d.lat, lng: d.lng === "" ? null : d.lng }, f).catch(() => {});
-      });
-    }
-    function placeMarker(lat, lng, pan) {
-      if (!Adm.map) return;
-      if (!Adm.marker) {
-        Adm.marker = L.marker([lat, lng], { draggable: true, autoPan: true }).addTo(Adm.map);
-        Adm.marker.on("dragend", () => { const p = Adm.marker.getLatLng(); setCoord(p.lat, p.lng, false); });
-      } else Adm.marker.setLatLng([lat, lng]);
-      Adm.marker.bindTooltip(`${lat.toFixed(6)}, ${lng.toFixed(6)}`, { direction: "top", offset: [0, -30] });
-      if (pan) Adm.map.setView([lat, lng], Math.max(Adm.map.getZoom(), 16));
-    }
-    function setCoord(lat, lng, pan = true) {
-      const f = $("#f-lokasi");
-      $('[name="lat"]', f).value = lat.toFixed(6);
-      $('[name="lng"]', f).value = lng.toFixed(6);
-      placeMarker(lat, lng, pan);
-    }
-
-    // ---------- Editor ROI ----------
-    const R = { pts: [], saved: null, sel: -1, hover: -1, drag: -1, hist: [], before: null };
-    const round4 = (v) => Math.round(Math.min(1, Math.max(0, v)) * 10000) / 10000;
-    const roiArea = (p) => Math.abs(p.reduce((s, [x1, y1], i) => { const [x2, y2] = p[(i + 1) % p.length]; return s + x1 * y2 - x2 * y1; }, 0)) / 2;
-    const PRESETS = {
-      "preset-full": [[0.02, 0.02], [0.98, 0.02], [0.98, 0.98], [0.02, 0.98]],
-      "preset-right": [[0.52, 0.35], [0.66, 0.35], [0.98, 0.98], [0.55, 0.98]],
-      "preset-left": [[0.34, 0.35], [0.48, 0.35], [0.45, 0.98], [0.02, 0.98]],
-    };
-
-    async function initRoi() {
-      const s = S.settings;
-      R.saved = s.roi ? JSON.parse(JSON.stringify(s.roi)) : null;
-      R.pts = R.saved ? JSON.parse(JSON.stringify(R.saved)) : [];
-      R.hist = []; R.sel = R.hover = R.drag = -1;
-      const f = $("#f-roi");
-      fillForm(f, { roi_label: s.roi_label || "" });
-      $("#roi-stage").style.setProperty("--ar", s.mode === "cctv" ? "16 / 9" : "4 / 3");
-      $("#roi-preview-btn").hidden = s.mode !== "cctv" || DEMO;
-      const cv = $("#roi-canvas");
-      cv.addEventListener("pointerdown", roiDown);
-      cv.addEventListener("pointermove", roiMove);
-      cv.addEventListener("pointerup", roiUp);
-      cv.addEventListener("pointercancel", roiUp);
-      cv.addEventListener("pointerleave", () => { $("#roi-pos").textContent = "x –, y –"; if (R.hover !== -1) { R.hover = -1; renderRoi(); } });
-      cv.addEventListener("contextmenu", (e) => { e.preventDefault(); roiDelete(hitPoint(evPos(e))); });
-      cv.addEventListener("dblclick", (e) => roiDelete(hitPoint(evPos(e))));
-      new ResizeObserver(() => renderRoi()).observe($("#roi-stage"));
-      $$("[data-roi]").forEach((b) => b.addEventListener("click", () => roiAction(b.dataset.roi)));
-      R.det = null;
-      $("#roi-det").addEventListener("change", () => withLoader("Mengambil hasil deteksi…", loadRoiFrame, 250));
-      $('[name="roi_label"]', f).addEventListener("input", () => renderRoi());
-      $("#roi-json").addEventListener("input", (e) => {
-        const msg = $("#roi-json-msg");
-        try {
-          const v = JSON.parse(e.target.value || "[]");
-          if (!Array.isArray(v) || v.some((p) => !Array.isArray(p) || p.length !== 2 || p.some((n) => typeof n !== "number" || n < 0 || n > 1))) throw new Error("format harus [[x, y], ...] dengan nilai 0–1");
-          if (v.length > 40) throw new Error("maksimal 40 titik");
-          R.hist.push(JSON.stringify(R.pts)); R.pts = v.map(([x, y]) => [round4(x), round4(y)]); R.sel = -1;
-          msg.textContent = "✓ valid"; msg.className = "text-lancar"; renderRoi(true);
-        } catch (err) { msg.textContent = "✗ " + err.message; msg.className = "text-macet"; }
-      });
-      f.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        if (R.pts.length < 3) return toast("ROI butuh minimal 3 titik", "err");
-        if (roiArea(R.pts) < 0.002) return toast("Area ROI terlalu kecil atau titiknya segaris", "err");
-        const res = await saveSection("roi", { roi: R.pts, roi_label: readForm(f).roi_label }, f).catch(() => null);
-        if (res) { R.saved = res.settings.roi; renderRoi(); }
-      });
-      renderRoi();
-      if (DEMO && QS.get("roidet")) $("#roi-det").checked = true;
-      await loadRoiFrame();
-    }
-
-    async function loadRoiFrame() {
-      const img = $("#roi-img"), ph = $("#roi-ph");
-      ph.hidden = false; ph.innerHTML = '<div><div class="spinner" style="margin:0 auto 10px"></div>Mengambil frame kamera…</div>';
-      R.det = null;
-      try {
-        let url;
-        if ($("#roi-det").checked) {
-          const d = await fetchDetections(S.admLoc);
-          if (d) { url = await fetchDetImage(S.admLoc, "roi"); R.det = d; }
-          else { $("#roi-det").checked = false; toast("Belum ada hasil deteksi untuk lokasi ini", "warn"); }
-        }
-        if (!url) url = await fetchFrame(S.admLoc, "roi");
-        await new Promise((res, rej) => { img.onload = res; img.onerror = () => rej(new Error("gambar rusak")); img.src = url; });
-        $("#roi-stage").style.setProperty("--ar", `${img.naturalWidth} / ${img.naturalHeight}`);
-        img.hidden = false; ph.hidden = true;
-      } catch (e) {
-        img.hidden = true; R.det = null;
-        ph.innerHTML = `<div>Frame belum tersedia (${esc(e.message)}).<br><span class="small">ROI tetap bisa digambar; koordinat 0–1 berlaku untuk resolusi apa pun.</span></div>`;
-      }
-      renderRoi();
-    }
-
-    function evPos(e) {
-      const r = $("#roi-canvas").getBoundingClientRect();
-      return { x: round4((e.clientX - r.left) / r.width), y: round4((e.clientY - r.top) / r.height), px: e.clientX - r.left, py: e.clientY - r.top, w: r.width, h: r.height, touch: e.pointerType === "touch" };
-    }
-    function hitPoint(p) {
-      const tol = p.touch ? 20 : 11;
-      for (let i = R.pts.length - 1; i >= 0; i--) if (Math.hypot(R.pts[i][0] * p.w - p.px, R.pts[i][1] * p.h - p.py) <= tol) return i;
-      return -1;
-    }
-    function hitEdge(p) {
-      const n = R.pts.length;
-      if (n < 3) return -1;
-      let best = -1, bestD = p.touch ? 14 : 8;
-      for (let i = 0; i < n; i++) {
-        const [ax, ay] = [R.pts[i][0] * p.w, R.pts[i][1] * p.h], [bx, by] = [R.pts[(i + 1) % n][0] * p.w, R.pts[(i + 1) % n][1] * p.h];
-        const dx = bx - ax, dy = by - ay, L2 = dx * dx + dy * dy || 1;
-        const t = Math.max(0, Math.min(1, ((p.px - ax) * dx + (p.py - ay) * dy) / L2));
-        const d = Math.hypot(ax + t * dx - p.px, ay + t * dy - p.py);
-        if (d < bestD) { bestD = d; best = i + 1; }
-      }
-      return best;
-    }
-    function roiDown(e) {
-      if (e.button !== 0) return;
-      e.preventDefault();
-      e.target.setPointerCapture(e.pointerId);
-      const p = evPos(e);
-      let i = hitPoint(p);
-      R.before = JSON.stringify(R.pts);
-      if (i < 0) {
-        if (R.pts.length >= 40) return toast("Maksimal 40 titik", "warn");
-        const ins = hitEdge(p);
-        if (ins >= 0) { R.pts.splice(ins, 0, [p.x, p.y]); i = ins; }
-        else { R.pts.push([p.x, p.y]); i = R.pts.length - 1; }
-      }
-      R.sel = i; R.drag = i;
-      renderRoi(true);
-    }
-    function roiMove(e) {
-      const p = evPos(e);
-      $("#roi-pos").textContent = `x ${p.x.toFixed(3)}, y ${p.y.toFixed(3)}`;
-      if (R.drag >= 0) { R.pts[R.drag] = [p.x, p.y]; renderRoi(true); return; }
-      const h = hitPoint(p);
-      if (h !== R.hover) { R.hover = h; e.target.style.cursor = h >= 0 ? "grab" : hitEdge(p) >= 0 ? "copy" : "crosshair"; renderRoi(); }
-    }
-    function roiUp() {
-      if (R.drag >= 0 && R.before !== null && R.before !== JSON.stringify(R.pts)) R.hist.push(R.before);
-      R.drag = -1; R.before = null;
-      if (R.hist.length > 100) R.hist.shift();
-    }
-    function roiDelete(i) {
-      if (i < 0) return;
-      R.hist.push(JSON.stringify(R.pts));
-      R.pts.splice(i, 1); R.sel = -1; R.hover = -1;
-      renderRoi(true);
-    }
-    function roiAction(a) {
-      const f = $("#f-roi");
-      if (a === "undo") { if (R.hist.length) { R.pts = JSON.parse(R.hist.pop()); R.sel = -1; renderRoi(true); } else toast("Tidak ada yang bisa diurungkan", "warn", 2000); }
-      else if (a === "del") roiDelete(R.sel);
-      else if (a === "clear") { R.hist.push(JSON.stringify(R.pts)); R.pts = []; R.sel = -1; renderRoi(true); }
-      else if (a === "reset") { R.hist.push(JSON.stringify(R.pts)); R.pts = R.saved ? JSON.parse(JSON.stringify(R.saved)) : []; R.sel = -1; renderRoi(true); }
-      else if (a === "frame") withLoader("Mengambil frame kamera…", loadRoiFrame, 250);
-      else if (PRESETS[a]) { R.hist.push(JSON.stringify(R.pts)); R.pts = JSON.parse(JSON.stringify(PRESETS[a])); R.sel = -1; renderRoi(true); }
-      else if (a === "copy-yaml") {
-        const label = readForm(f).roi_label;
-        copyText(`${label ? `roi_label: "${label.replace(/"/g, "'")}"\n` : ""}roi:\n${R.pts.map(([x, y]) => `  - [${x}, ${y}]`).join("\n")}`);
-      }
-      else if (a === "preview") window.open(`${API_BASE}/api/debug/roi-preview?location=${enc(S.admLoc)}`, "_blank", "noopener");
-      else if (a === "disable") {
-        if (!confirm("Matikan ROI? Semua kendaraan di seluruh frame akan dihitung.")) return;
-        saveSection("roi", { roi: null, roi_label: readForm(f).roi_label }, null).then((res) => { R.saved = null; R.hist.push(JSON.stringify(R.pts)); R.pts = []; renderRoi(true); }).catch(() => {});
-      }
-    }
-    document.addEventListener("keydown", (e) => {
-      if (S.tab !== "admin" || S.sub !== "roi" || /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
-      if ((e.key === "Delete" || e.key === "Backspace") && R.sel >= 0) { e.preventDefault(); roiDelete(R.sel); }
-      else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") { e.preventDefault(); roiAction("undo"); }
-      else if (e.key === "Escape") { R.sel = -1; renderRoi(); }
-    });
-    function renderRoi(updateJson) {
-      const cv = $("#roi-canvas");
-      if (!cv) return;
-      const f = $("#f-roi");
-      let boxes = null, head = "";
-      const hint = $("#roi-det-hint");
-      if (R.det) {
-        // hitung ulang di browser: titik tengah kotak di dalam poligon draf?
-        boxes = R.det.boxes.map((b) => ({ ...b, in_roi: boxInRoi(b, R.pts) }));
-        const n = boxes.filter((b) => b.in_roi).length;
-        head = `Dengan ROI ini: ${n} kendaraan`;
-        hint.hidden = false;
-        hint.innerHTML = `Uji pada deteksi ${fmtTime(new Date(R.det.ts * 1000))}: <b>${n}</b> dari ${boxes.length} kendaraan masuk ROI draf ini · ROI saat deteksi: <b>${R.det.vehicle_count}</b>. Kotak abu-abu putus-putus = di luar ROI (tidak dihitung).`;
-      } else if (hint) hint.hidden = true;
-      drawRoi(cv, R.pts, { editable: true, sel: R.sel, hover: R.hover, label: f ? readForm(f).roi_label : "", boxes, head });
-      $("#roi-count").textContent = `${R.pts.length} titik${R.pts.length >= 3 ? ` · area ${(roiArea(R.pts) * 100).toFixed(1)}%` : ""}${boxes ? ` · ${boxes.filter((b) => b.in_roi).length} kendaraan` : ""}`;
-      const ta = $("#roi-json");
-      if (updateJson !== false && document.activeElement !== ta) ta.value = R.pts.length ? "[\n" + R.pts.map((p) => `  [${p[0]}, ${p[1]}]`).join(",\n") + "\n]" : "[]";
-      const same = JSON.stringify(R.pts) === JSON.stringify(R.saved || []);
-      const st = $("#roi-state");
-      if (!R.saved && !R.pts.length) { st.textContent = "ROI tidak aktif"; st.className = "pill"; }
-      else if (same) { st.textContent = "Tersimpan"; st.className = "pill pill-lancar"; }
-      else { st.textContent = "Belum disimpan"; st.className = "pill pill-padat"; }
-    }
-
-    // ---------- Ambang & program ----------
-    function initLalin() {
-      const ft = $("#f-thresholds"), fp = $("#f-program");
-      fillForm(ft, S.settings.thresholds);
-      fillForm(fp, S.settings.program);
-      ft.addEventListener("submit", (e) => { e.preventDefault(); saveSection("thresholds", readForm(ft), ft).catch(() => {}); });
-      fp.addEventListener("submit", (e) => { e.preventDefault(); saveSection("program", readForm(fp), fp).catch(() => {}); });
-    }
-
-    // ---------- Firmware kamera ----------
     const FS_RES = { QQVGA: [160, 120], QVGA: [320, 240], VGA: [640, 480], SVGA: [800, 600], XGA: [1024, 768], SXGA: [1280, 1024], UXGA: [1600, 1200] };
-    function initKamera() {
-      const f = $("#f-camera");
-      const list = (S.pub && S.pub.framesizes) || Object.keys(FS_RES);
-      $("#opt-framesize").innerHTML = list.map((k) => `<option value="${k}">${k}${FS_RES[k] ? ` — ${FS_RES[k][0]}×${FS_RES[k][1]}` : ""}</option>`).join("");
-      fillForm(f, S.settings.camera);
-      f.addEventListener("submit", (e) => { e.preventDefault(); saveSection("camera", readForm(f), f).then(renderFwDevs).catch(() => {}); });
-      renderFwDevs();
-    }
-    function camEstimate(f) {
-      const d = readForm(f);
-      const [w, h] = FS_RES[d.framesize] || [800, 600];
-      const kb = Math.round((w * h * 0.075 / 1000) * Math.pow(12 / Math.max(4, d.jpeg_quality || 12), 0.8));
-      const perHour = Math.round(3600 / Math.max(1, d.capture_interval_s || 5));
-      $("#cam-estimate").innerHTML = `Perkiraan kasar: <b>±${kb} KB/frame</b> · <b>${perHour} frame/jam</b> · <b>±${((kb * perHour) / 1024).toFixed(0)} MB/jam</b> upload. Resolusi lebih besar = deteksi motor jauh lebih akurat, tapi butuh PSRAM dan WiFi stabil.`;
-    }
-    // ---------- Firmware lampu ----------
-    function initLampu() {
-      const f = $("#f-light");
-      fillForm(f, S.settings.light);
-      f.addEventListener("submit", (e) => {
-        e.preventDefault();
-        const d = readForm(f);
-        if (d.fallback_yellow < 3) return toast("Kuning minimal 3 detik", "err");
-        saveSection("light", d, f).then(renderFwDevs).catch(() => {});
-      });
-      renderFwDevs();
-    }
-
-    // ---------- Perangkat ----------
-    const locDevices = () => S.devices.filter((d) => d.location === S.admLoc);
-    const devSeen = (d) => (d._seen ? Math.floor((Date.now() - d._seen) / 1000) : d.seconds_since_seen);
-    function syncBadge(d) {
-      const v = S.settings && S.settings.config_version;
-      if (d.config_version == null) return `<span class="sync muted">belum melapor</span>`;
-      return +d.config_version === +v ? `<span class="sync text-lancar">✓ v${d.config_version} sinkron</span>` : `<span class="sync text-padat">⟳ v${d.config_version} → v${v}</span>`;
-    }
-    function renderFwDevs() {
-      const role = S.sub === "kamera" ? "camera" : "light";
-      const box = $(S.sub === "kamera" ? "#fw-cam-devs" : "#fw-light-devs");
-      if (!box) return;
-      const devs = locDevices().filter((d) => d.role === role);
-      box.innerHTML = devs.length ? devs.map((d) => `<span class="pill ${d.online ? "pill-lancar" : "pill-macet"}">${esc(d.device_id)} · ${d.online ? "online" : "offline"}</span><span class="pill">fw ${esc(d.fw || "?")}</span>${syncBadge(d)}`).join("")
-        : `<span class="pill">Belum ada perangkat ${role === "camera" ? "kamera" : "lampu"} yang melapor</span>`;
-    }
-    function initPerangkat() {
-      renderDevices();
-      const t = S.settings.topics || {};
-      $("#topic-kv").innerHTML = Object.entries({ "Status (retained)": t.status, "Konfigurasi (retained)": t.config, "Perintah": t.cmd, "State perangkat": t.state }).map(([k, v]) => `<dt>${k}</dt><dd class="mono">${esc(v || "–")}</dd>`).join("");
-    }
-    function renderDevices() {
-      const tb = $("#dev-table");
-      if (!tb) return;
-      const devs = locDevices();
-      tb.innerHTML = devs.length ? devs.map((d) => `<tr>
-        <td class="mono"><b>${esc(d.device_id)}</b></td><td>${d.role === "camera" ? "Kamera ESP32-S3" : d.role === "light" ? "Lampu ESP32-C6" : esc(d.role || "–")}</td>
-        <td>${d.online ? '<span class="pill pill-lancar">online</span>' : '<span class="pill pill-macet">offline</span>'}</td>
-        <td>${devSeen(d) != null ? ago(new Date(Date.now() - devSeen(d) * 1000)) : "–"}</td>
-        <td>${d.rssi != null ? `${esc(d.rssi)} dBm` : "–"}</td><td>${d.battery != null ? esc(d.battery) + "%" : "–"}</td>
-        <td>${esc(d.fw || "–")}</td><td>${syncBadge(d)}</td></tr>`).join("")
-        : `<tr><td colspan="8" class="empty">Belum ada perangkat yang melapor untuk lokasi ini</td></tr>`;
-      const s = S.settings || {};
-      const kv = $("#sync-kv");
-      if (kv) kv.innerHTML = `<dt>Versi konfigurasi</dt><dd>v${esc(s.config_version)}</dd>
-        <dt>MQTT server</dt><dd>${s.mqtt_connected ? '<span class="text-lancar">terhubung</span>' : '<span class="text-padat">tidak terhubung (perangkat via HTTP)</span>'}</dd>
-        <dt>MQTT browser</dt><dd>${S.mqttOk ? '<span class="text-lancar">live</span>' : "polling API"}</dd>
-        <dt>Mode lokasi</dt><dd>${esc(s.mode)}</dd><dt>Slug</dt><dd class="mono">${esc(s.slug)}</dd>`;
-    }
     // =====================================================================
     //  DEMO (?demo=1) — data simulasi supaya tampilan bisa dicoba tanpa server
     // =====================================================================
@@ -2274,7 +1571,7 @@
 
     (async function init() {
       applyTheme(QS.get("theme") || localStorage.getItem("fic.theme") || (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light"));
-      if (DEMO) { $("#demo-banner").hidden = false; if (QS.get("token")) S.token = QS.get("token"); }
+      if (DEMO) { $("#demo-banner").hidden = false; }
       try { S.pub = await api("/api/public-config"); } catch { S.pub = null; }
       startMqtt();
       const first = window.location.hash.slice(1).split("/")[0];

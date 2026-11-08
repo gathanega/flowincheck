@@ -30,6 +30,7 @@ mqtt:
   ws_password: ""
 
 # dashboard_file: "dashboard.html"   # disajikan di http://<server>/
+# admin_file: "admin.html"           # panel admin terpisah, disajikan di http://<server>/admin
 
 cctv_poll_interval_seconds: 10
 

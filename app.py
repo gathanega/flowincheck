@@ -426,6 +426,7 @@ app.include_router(create_router(SimpleNamespace(
 # ------------------------- dashboard satu file (opsional) -------------------
 # Taruh dashboard.html (dan folder pictures/) di samping app.py, lalu buka http://<server>/
 DASHBOARD_FILE = CONFIG.get("dashboard_file", "dashboard.html")
+ADMIN_FILE = CONFIG.get("admin_file", "admin.html")      # panel admin terpisah, disajikan di /admin
 if os.path.isdir("pictures"):
     app.mount("/pictures", StaticFiles(directory="pictures"), name="pictures")
 
@@ -435,3 +436,12 @@ async def dashboard():
     if not os.path.isfile(DASHBOARD_FILE):
         raise HTTPException(404, f"{DASHBOARD_FILE} tidak ditemukan di samping app.py")
     return FileResponse(DASHBOARD_FILE, media_type="text/html", headers={"Cache-Control": "no-cache"})
+
+
+@app.get("/admin", include_in_schema=False)
+@app.get("/admin/", include_in_schema=False)
+async def admin_panel():
+    # Halaman admin tidak ditautkan dari dashboard publik. Semua aksi tetap dilindungi token admin di /api/admin/*.
+    if not os.path.isfile(ADMIN_FILE):
+        raise HTTPException(404, f"{ADMIN_FILE} tidak ditemukan di samping app.py")
+    return FileResponse(ADMIN_FILE, media_type="text/html", headers={"Cache-Control": "no-cache", "X-Robots-Tag": "noindex, nofollow"})

@@ -6,7 +6,9 @@
 
 **Lampu lalu lintas adaptif berbasis YOLOv8 — kamera ESP32-S3 _atau_ CCTV publik online**
 
-Hitung kendaraan dari kamera, tentukan lalu lintas **LANCAR / PADAT / MACET**, lalu atur durasi lampu merah-kuning-hijau secara otomatis. Dilengkapi dashboard web publik dan panel admin.
+Hitung kendaraan dari kamera, tentukan lalu lintas **LANCAR / PADAT / MACET**, lalu atur durasi lampu merah-kuning-hijau secara otomatis. Dilengkapi **dashboard web publik** (`/`) dan **panel admin terpisah** (`/admin`).
+
+[Mulai cepat](#mulai-cepat) · [Cara penggunaan](#cara-penggunaan) · [Instalasi](#instalasi-di-ubuntu) · [Referensi API](#referensi-api)
 
 </div>
 
@@ -15,19 +17,21 @@ Hitung kendaraan dari kamera, tentukan lalu lintas **LANCAR / PADAT / MACET**, l
 ## Daftar Isi
 
 1. [Fitur](#fitur)
-2. [Arsitektur](#arsitektur)
-3. [Struktur Proyek](#struktur-proyek)
-4. [Instalasi di Ubuntu](#instalasi-di-ubuntu)
-5. [Menggunakan CCTV Publik (Mode B)](#menggunakan-cctv-publik-mode-b)
-6. [Menggunakan Kamera ESP32-S3 (Mode A)](#menggunakan-kamera-esp32-s3-mode-a)
-7. [Lampu Lalu Lintas ESP32-C6](#lampu-lalu-lintas-esp32-c6)
-8. [Menjalankan sebagai Service (systemd)](#menjalankan-sebagai-service-systemd)
-9. [HTTPS dengan Nginx](#https-dengan-nginx)
-10. [MQTT (opsional)](#mqtt-opsional)
-11. [Referensi API](#referensi-api)
-12. [Pemecahan Masalah](#pemecahan-masalah)
-13. [Keamanan & Etika](#keamanan--etika)
-14. [Screenshot](#screenshot)
+2. [Mulai Cepat](#mulai-cepat)
+3. [Cara Penggunaan](#cara-penggunaan)
+4. [Arsitektur](#arsitektur)
+5. [Struktur Proyek](#struktur-proyek)
+6. [Instalasi di Ubuntu](#instalasi-di-ubuntu)
+7. [Menggunakan CCTV Publik (Mode B)](#menggunakan-cctv-publik-mode-b)
+8. [Menggunakan Kamera ESP32-S3 (Mode A)](#menggunakan-kamera-esp32-s3-mode-a)
+9. [Lampu Lalu Lintas ESP32-C6](#lampu-lalu-lintas-esp32-c6)
+10. [Menjalankan sebagai Service (systemd)](#menjalankan-sebagai-service-systemd)
+11. [HTTPS dengan Nginx](#https-dengan-nginx)
+12. [MQTT (opsional)](#mqtt-opsional)
+13. [Referensi API](#referensi-api)
+14. [Pemecahan Masalah](#pemecahan-masalah)
+15. [Keamanan & Etika](#keamanan--etika)
+16. [Screenshot](#screenshot)
 
 ---
 
@@ -37,13 +41,78 @@ Hitung kendaraan dari kamera, tentukan lalu lintas **LANCAR / PADAT / MACET**, l
   - **Mode A – `esp32`**: kamera ESP32-S3 mengirim frame JPEG ke server.
   - **Mode B – `cctv`**: server menarik gambar sendiri dari **API/stream CCTV publik** (snapshot JPEG, HLS `.m3u8`, atau MJPEG). Tidak perlu perangkat keras tambahan.
 - **Deteksi YOLOv8n** untuk mobil, motor, bus, dan truk.
-- **ROI (filter jalur)**: hitung hanya kendaraan di jalur yang relevan, digambar langsung di tab Admin.
+- **ROI (filter jalur)**: hitung hanya kendaraan di jalur yang relevan, digambar langsung di panel admin.
 - **Hasil deteksi ROI**: kotak tiap kendaraan + `kelas: confidence` + "Vehicles detected: N" di tab Pantauan, tabel deteksi, dan unduhan JPG (render server), PNG, JSON, CSV. Di editor ROI, "Uji deteksi terakhir" menghitung ulang jumlah kendaraan untuk poligon yang sedang digambar sebelum disimpan.
 - **Klasifikasi kepadatan** (LANCAR / PADAT / MACET) dan **program lampu otomatis** (durasi merah/kuning/hijau).
-- **Dashboard satu file HTML**: ringkasan, peta pantauan, riwayat + ekspor CSV, grafik rata-rata per jam, mode gelap/terang, responsif di HP.
-- **Panel Admin** (token): koordinat lokasi, ROI, ambang, program lampu, parameter firmware, perintah jarak jauh.
+- **Dashboard publik (`dashboard.html`)**: tiga tab (Dashboard, Pantauan, Riwayat) — ringkasan, peta pantauan, riwayat + ekspor CSV, grafik rata-rata per jam, mode gelap/terang, responsif di HP. Tanpa login.
+- **Panel admin terpisah (`admin.html`, alamat `/admin`)**: koordinat lokasi, ROI, ambang, program lampu, parameter firmware, perintah jarak jauh. Dilindungi token dan **tidak ditautkan** dari dashboard publik.
 - **MQTT opsional** untuk update live; tanpa MQTT, semua tetap jalan lewat HTTP.
 - Riwayat disimpan di **Supabase** (PostgreSQL).
+
+## Mulai Cepat
+
+Untuk yang sudah punya Ubuntu + akun Supabase (detail lengkap di [Instalasi](#instalasi-di-ubuntu)):
+
+```bash
+git clone https://github.com/gathanega/flowincheck.git && cd flowincheck
+python3 -m venv .venv && source .venv/bin/activate
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+pip install -r requirements.txt
+cp config.example.yaml config.yaml        # isi supabase, admin_token, locations
+uvicorn app:app --host 0.0.0.0 --port 8000
+```
+
+| Alamat | Isi |
+|---|---|
+| `http://IP_SERVER:8000/` | Dashboard publik (Dashboard · Pantauan · Riwayat) |
+| `http://IP_SERVER:8000/admin` | Panel admin (butuh `admin_token`) |
+| `http://IP_SERVER:8000/docs` | Dokumentasi API interaktif |
+
+Hanya ingin melihat tampilannya? Tidak perlu server — buka langsung di browser:
+
+- `dashboard.html?demo=1` → dashboard publik dengan data simulasi
+- `admin.html?demo=1&token=x` → panel admin dengan data simulasi (token apa saja diterima di mode demo)
+
+## Cara Penggunaan
+
+### Dashboard publik (`/`)
+
+Terbuka untuk umum, tanpa login. Menu ada di header: **Dashboard**, **Pantauan**, **Riwayat**.
+
+| Tab | Kegunaan |
+|---|---|
+| **Dashboard** | Status lalu lintas (LANCAR/PADAT/MACET), jumlah kendaraan di jalur ROI, program lampu saat ini, jenis kendaraan, grafik rata-rata per jam, dan data terbaru. |
+| **Pantauan** | Peta semua lokasi, frame kamera terbaru, hasil deteksi ROI (kotak + `kelas: confidence`). Hasil dapat diunduh sebagai JPG, PNG, JSON, atau CSV. |
+| **Riwayat** | Tabel riwayat deteksi (pilih jumlah baris) dan tombol **Unduh CSV**. |
+
+Dropdown **lokasi** di kanan atas memfilter semua tab ke satu persimpangan. Tombol ◐ mengganti tema terang/gelap. Lampu indikator **API** dan **MQTT** menunjukkan status koneksi.
+
+### Panel admin (`/admin`)
+
+1. Buka `http://IP_SERVER:8000/admin` (alamatnya tidak ada di menu dashboard publik, jadi simpan sebagai bookmark).
+2. Masukkan `admin_token` dari `config.yaml`. Centang **Ingat di perangkat ini** bila perlu. Tombol **Keluar** menghapus sesi.
+3. Pilih **lokasi** di kanan atas, lalu pakai menu samping:
+
+| Menu | Fungsi |
+|---|---|
+| **Lokasi & koordinat** | Nama tampilan, lat/lng. Klik peta atau geser pin untuk memindahkan titik. |
+| **ROI jalur** | Gambar poligon jalur yang dihitung (tambah/geser/hapus titik, **Urungkan**, preset kanan/kiri/seluruh, **Ambil frame baru**). Nyalakan saklar **Uji deteksi terakhir** untuk melihat berapa kendaraan masuk poligon sebelum menyimpan; tersedia juga **Preview server** dan **Salin sebagai YAML**. |
+| **Ambang & program** | Ambang kepadatan (`density_low`/`density_high`) dan program lampu merah/kuning/hijau; **Simpan & kirim ke lampu** mendorong program ke perangkat. |
+| **Firmware kamera** | Interval kirim, resolusi, kualitas JPEG ESP32-S3 (tanpa flash ulang) + perkiraan pemakaian data. |
+| **Firmware lampu** | Mode offline (`fallback`, `blink_yellow`, `all_red`) dan parameter ESP32-C6. |
+| **Perangkat & MQTT** | Status online/offline, baterai, RSSI, versi; tombol **Ambil foto** (`capture_now`), **Reboot kamera/lampu** (`reboot`), dan **Kirim ulang konfigurasi** (`resend_config`). |
+
+Setiap perubahan disimpan ke `runtime_state.json` di server dan dikirim ke perangkat lewat MQTT/HTTP. Nilai di `config.yaml` hanya nilai awal.
+
+### Alur kerja yang disarankan
+
+1. Isi `config.yaml` (Supabase, `admin_token`, satu atau lebih `locations`) lalu jalankan server.
+2. Buka `/admin` → **Lokasi & koordinat**: set titik lokasi.
+3. **ROI jalur**: gambar poligon jalur, nyalakan **Uji deteksi terakhir** untuk mengecek hasilnya, lalu **Simpan ROI**.
+4. **Ambang & program**: sesuaikan setelah melihat angka riwayat beberapa hari di tab Riwayat.
+5. Sambungkan lampu ESP32-C6 (lihat [bagian lampu](#lampu-lalu-lintas-esp32-c6)) dan pantau lewat tab **Pantauan**.
+
+> Sumber data dashboard: API FastAPI, ditambah MQTT over WebSocket bila diaktifkan. Tanpa MQTT, halaman melakukan polling tiap ±7 detik.
 
 ## Arsitektur
 
@@ -61,7 +130,7 @@ Hitung kendaraan dari kamera, tentukan lalu lintas **LANCAR / PADAT / MACET**, l
                           ▼                                        ▼
                  ┌──────────────────┐                    ┌──────────────────┐
                  │ ESP32-C6 (lampu) │                    │ Dashboard (web)  │
-                 │ merah/kuning/hijau│                   │ + panel Admin    │
+                 │ merah/kuning/hijau│                   │ (/) & Admin (/admin)│
                  └──────────────────┘                    └──────────────────┘
         (opsional) MQTT broker menghubungkan server ⇄ perangkat ⇄ dashboard
 ```
@@ -75,7 +144,8 @@ Hitung kendaraan dari kamera, tentukan lalu lintas **LANCAR / PADAT / MACET**, l
 | `admin_api.py` | Endpoint dashboard & admin |
 | `runtime.py` | Penyimpanan pengaturan dari dashboard (`runtime_state.json`) |
 | `mqtt_bus.py` | Jembatan MQTT (opsional) |
-| `dashboard.html` | Dashboard web satu file (tambah `?demo=1` untuk mode contoh) |
+| `dashboard.html` | Dashboard publik satu file: Dashboard, Pantauan, Riwayat (tambah `?demo=1` untuk mode contoh) |
+| `admin.html` | Panel admin terpisah, disajikan di `/admin`, tidak ditautkan dari dashboard publik (`?demo=1&token=x` untuk mode contoh) |
 | `esp32s3_camera.ino` | Firmware kamera ESP32-S3 |
 | `esp32c6_trafficlight.ino` | Firmware lampu lalu lintas ESP32-C6 |
 | `config.example.yaml` | Contoh konfigurasi → salin menjadi `config.yaml` |
@@ -211,9 +281,9 @@ curl http://localhost:8000/api/health
 # {"ok":true,"locations_tracked":[...],"mqtt":false}
 ```
 
-Dashboard: `http://IP_SERVER:8000/` — panel admin ada di tab **Admin** (masukkan `admin_token`).
+Dashboard publik: `http://IP_SERVER:8000/` · Panel admin: `http://IP_SERVER:8000/admin` (masukkan `admin_token`).
 
-> Ingin melihat tampilan tanpa server? Buka `dashboard.html?demo=1` di browser.
+> Ingin melihat tampilan tanpa server? Buka `dashboard.html?demo=1` (publik) atau `admin.html?demo=1&token=x` (admin) di browser.
 
 ---
 
@@ -258,13 +328,13 @@ locations:
     cctv_stream_type: mjpeg      # hls | mjpeg | snapshot
     cctv_ffmpeg_timeout: 20      # detik, opsional (khusus hls/mjpeg)
     device_id: "cctv-malang"
-    lat: -7.9797                 # titik sebenarnya (atau klik peta di tab Admin)
+    lat: -7.9797                 # titik sebenarnya (atau klik peta di panel admin)
     lng: 112.6304
     calibration_max_count: 25
     density_low: 6               # di bawah ini  -> LANCAR
     density_high: 18             # sama/di atas  -> MACET
     roi_label: "jalur kanan"
-    roi:                         # opsional, bisa digambar di tab Admin > ROI
+    roi:                         # opsional, bisa digambar di panel admin > ROI
       - [0.90, 0.09]
       - [0.53, 1.00]
       - [0.94, 0.86]
@@ -279,7 +349,7 @@ Nama kunci seperti `cctv_snapshot_url` dipakai juga untuk stream HLS/MJPEG; `cct
 Satu frame CCTV sering mencakup beberapa jalur/arah, padahal lampu hanya perlu menghitung jalur yang masuk ke simpang itu.
 
 - Buka `http://IP_SERVER:8000/api/debug/roi-preview?location=Malang-CCTV` untuk melihat frame live dengan poligon ROI berwarna merah, **atau**
-- Gambar langsung di dashboard: **Admin → pilih lokasi → ROI**.
+- Gambar langsung di dashboard: **/admin → pilih lokasi → ROI jalur**.
 
 Koordinat ROI ternormalisasi `0.0–1.0` terhadap lebar/tinggi frame. Ubah `density_low`/`density_high` sesuai kondisi jalan setelah melihat angka riwayat beberapa hari.
 
@@ -337,7 +407,7 @@ Dalam ~10–30 detik respons akan berisi `vehicle_count`, `traffic_status`, dan 
    ```
 
 3. Sesuaikan pin kamera (`CAM_PIN_*`) dengan modul kamera kamu, lalu upload.
-4. Kamera mengirim JPEG ke `POST /api/ingest/esp32/{device_id}?location=...`. Interval, resolusi, dan kualitas JPEG bisa diubah dari tab **Admin** tanpa flash ulang.
+4. Kamera mengirim JPEG ke `POST /api/ingest/esp32/{device_id}?location=...`. Interval, resolusi, dan kualitas JPEG bisa diubah dari panel **admin** tanpa flash ulang.
 
 ## Lampu Lalu Lintas ESP32-C6
 
@@ -345,7 +415,7 @@ Dalam ~10–30 detik respons akan berisi `vehicle_count`, `traffic_status`, dan 
 
 - Wiring: **RED → GPIO 4**, **YELLOW → GPIO 5**, **GREEN → GPIO 6**, GND bersama. Modul LED 5V jangan diberi daya dari pin 3V3.
 - Isi `WIFI_*`, `SERVER_HOST`, `LOCATION_NAME`, `LOCATION_SLUG` (harus sama dengan `config.yaml`).
-- Jika server tidak terjangkau, lampu memakai mode offline: `fallback`, `blink_yellow`, atau `all_red` (diatur di tab Admin).
+- Jika server tidak terjangkau, lampu memakai mode offline: `fallback`, `blink_yellow`, atau `all_red` (diatur di panel admin).
 - Untuk lokasi **CCTV**, lampu ESP32-C6 tetap bisa dipakai: cukup arahkan `LOCATION_NAME` ke nama lokasi CCTV tadi.
 
 > Firmware belum diuji di perangkat oleh pembuat patch; uji bertahap sebelum dipasang ke lampu sungguhan.
@@ -387,7 +457,7 @@ sudo systemctl status flowincheck
 journalctl -u flowincheck -f          # lihat log live
 ```
 
-> `WorkingDirectory` wajib benar karena `config.yaml`, `dashboard.html`, dan `runtime_state.json` dibaca relatif terhadap folder itu. Jika mengikat ke `127.0.0.1`, akses dari luar lewat Nginx (bagian berikut). Untuk akses langsung ke port 8000, ganti ke `0.0.0.0`.
+> `WorkingDirectory` wajib benar karena `config.yaml`, `dashboard.html`, `admin.html`, dan `runtime_state.json` dibaca relatif terhadap folder itu. Jika mengikat ke `127.0.0.1`, akses dari luar lewat Nginx (bagian berikut). Untuk akses langsung ke port 8000, ganti ke `0.0.0.0`.
 
 ## HTTPS dengan Nginx
 
@@ -418,6 +488,17 @@ sudo ln -s /etc/nginx/sites-available/flowincheck /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
 sudo certbot --nginx -d dashboard.contoh.id
 sudo ufw allow 'Nginx Full'
+```
+
+Opsional — batasi `/admin` agar hanya bisa dibuka dari IP tertentu (lapisan tambahan di atas token), taruh di dalam blok `server`:
+
+```nginx
+    location = /admin {
+        allow 203.0.113.10;     # ganti dengan IP kamu
+        deny  all;
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+    }
 ```
 
 Jika dashboard dipasang di domain lain, batasi CORS di `config.yaml`:
@@ -498,6 +579,7 @@ Buat user `dashboard_ro` dengan ACL yang hanya boleh *subscribe* ke `status` dan
 | `GET /api/cameras` | Daftar lokasi CCTV |
 | `GET /api/light/latest?location=` | Program lampu terbaru (dipakai ESP32-C6) |
 | `GET /api/debug/roi-preview?location=` | Frame CCTV + poligon ROI |
+| `GET /` · `GET /admin` | Halaman dashboard publik · halaman panel admin (HTML) |
 | `POST /api/ingest/esp32/{device_id}?location=` | Kirim JPEG dari ESP32-S3 |
 
 **Admin** — header `Authorization: Bearer <admin_token>`
@@ -524,9 +606,10 @@ Dokumentasi interaktif FastAPI: `http://IP_SERVER:8000/docs`.
 | Instalasi pip lama / disk penuh | Pasang `torch` versi CPU dulu (langkah 3). |
 | `Killed` saat memuat model | RAM kurang; tambah swap: `sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile`. |
 | Dashboard kosong, data tidak muncul | Cek tabel `greenflow_logs` sudah dibuat dan `service_key` benar; lihat `journalctl -u flowincheck -f` (`failed to write to Supabase`). |
-| Tab Admin: 503 | `admin_token` di `config.yaml` masih kosong. |
-| Tab Admin: 401 | Token salah. |
+| Panel admin: 503 | `admin_token` di `config.yaml` masih kosong. |
+| Panel admin: 401 | Token salah. |
 | `/api/light/latest` berisi `note: fallback` | Belum ada frame yang diproses untuk lokasi itu; tunggu satu siklus polling atau cek log CCTV. |
+| `/admin` menampilkan 404 | `admin.html` tidak ada di samping `app.py` (atau `admin_file` salah di `config.yaml`). |
 | Nama lokasi tidak cocok | `location` di `config.yaml`, firmware, dan `?location=` harus **sama persis** (huruf besar/kecil dihitung). |
 
 ## Keamanan & Etika
@@ -536,7 +619,7 @@ Dokumentasi interaktif FastAPI: `http://IP_SERVER:8000/docs`.
   ```bash
   printf "config.yaml\nruntime_state.json\n.venv/\n__pycache__/\n*.pt\n" >> .gitignore
   ```
-- Selalu pakai HTTPS untuk panel admin, dan token admin yang panjang dan acak.
+- Selalu pakai HTTPS untuk panel admin, dan token admin yang panjang dan acak. Halaman `/admin` memang tidak ditautkan dari dashboard, tetapi perlindungan sebenarnya adalah token di `/api/admin/*`, bukan alamat yang disembunyikan.
 - Hanya pakai CCTV publik yang memang boleh diakses, patuhi syarat layanan penyedia, dan jangan menyebarkan ulang rekaman.
 - Sistem ini hanya **menghitung kendaraan**, tidak mengenali plat nomor atau wajah, dan tidak menyimpan gambar ke database (hanya angka hitungan).
 
